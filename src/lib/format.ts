@@ -1,11 +1,11 @@
 import type { OrderStatus } from "@prisma/client";
 
 export function formatXaf(amount: number): string {
-  return `${amount.toLocaleString("fr-FR").replace(/ | /g, " ")} FCFA`;
+  return `${amount.toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ")} FCFA`;
 }
 
 export function formatLiters(liters: number): string {
-  return `${liters.toLocaleString("fr-FR").replace(/ | /g, " ")} L`;
+  return `${liters.toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ")} L`;
 }
 
 export function formatDate(date: Date | null | undefined): string {
