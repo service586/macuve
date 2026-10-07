@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MaCuve
 
-## Getting Started
+Site de commande de livraison d'eau par citerne dans le Grand Libreville. Le client choisit un volume, paie par Airtel Money, et un livreur partenaire livre.
 
-First, run the development server:
+**Mode test** : `PAYMENT_PROVIDER="mock"`. Aucun argent ne circule ; une page de simulation remplace la validation par code PIN, et les SMS sont seulement enregistrés (menu Admin > SMS).
+
+## Démarrer en local
+
+Prérequis : Node.js 20 ou plus, PostgreSQL.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env        # puis adapter DATABASE_URL et SESSION_SECRET
+npm install
+npx prisma migrate deploy
+npm run db:seed             # communes, volumes, prix de test, comptes de démonstration
+npm run dev                 # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Comptes créés par le seed (à changer avant toute mise en ligne) :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Rôle | Téléphone | Mot de passe | Page |
+| --- | --- | --- | --- |
+| Administrateur | 077000000 | admin1234 | /admin |
+| Livreur de démonstration | 074000001 | fournisseur1 | /fournisseur |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Les prix du seed sont **fictifs** : à remplacer dans Admin > Tarifs.
 
-## Learn More
+## Organisation
 
-To learn more about Next.js, take a look at the following resources:
+| Dossier | Contenu |
+| --- | --- |
+| `prisma/schema.prisma` | Modèle de données : livreurs, communes, volumes, prix, commandes, paiements, reversements, SMS |
+| `src/app/` (racine, `commande/`, `suivi/`) | Parcours client : commande, paiement, suivi, note |
+| `src/app/fournisseur/` | Espace livreur : inscription, commandes disponibles, livraison avec code client, gains |
+| `src/app/admin/` | Administration : commandes, validation des livreurs, tarifs et commission, reversements, SMS |
+| `src/lib/payments/` | Paiement. Chaque prestataire (PVit, E-Billing, Airtel direct) implémente `PaymentProvider` ; seul `mock` existe pour l'instant |
+| `src/app/api/paiement/webhook/[provider]` | Réception des notifications de paiement des prestataires |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Brancher un vrai prestataire de paiement
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Créer `src/lib/payments/<prestataire>.ts` qui implémente `PaymentProvider` (demande de paiement, statut, webhook, remboursement, reversement).
+2. L'ajouter dans `src/lib/payments/index.ts`.
+3. Mettre `PAYMENT_PROVIDER="<prestataire>"` et ses clés dans `.env`, et déclarer chez le prestataire l'URL de notification `https://<domaine>/api/paiement/webhook/<prestataire>`.

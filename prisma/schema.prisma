@@ -1,0 +1,189 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  SUPPLIER
+}
+
+enum SupplierStatus {
+  PENDING
+  APPROVED
+  SUSPENDED
+}
+
+enum WaterSource {
+  FORAGE
+  SEEG
+  AUTRE
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  ACCEPTED
+  EN_ROUTE
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  phone        String    @unique
+  passwordHash String
+  role         Role
+  supplier     Supplier?
+  createdAt    DateTime  @default(now())
+}
+
+model Supplier {
+  id            String         @id @default(cuid())
+  user          User           @relation(fields: [userId], references: [id])
+  userId        String         @unique
+  businessName  String
+  airtelNumber  String
+  tankCapacityL Int
+  waterSource   WaterSource
+  status        SupplierStatus @default(PENDING)
+  zones         SupplierZone[]
+  orders        Order[]
+  payouts       Payout[]
+  ratingSum     Int            @default(0)
+  ratingCount   Int            @default(0)
+  createdAt     DateTime       @default(now())
+}
+
+model Zone {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  neighborhoods String[]
+  active        Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  prices        Price[]
+  suppliers     SupplierZone[]
+  orders        Order[]
+}
+
+model SupplierZone {
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplierId String
+  zone       Zone     @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  zoneId     String
+
+  @@id([supplierId, zoneId])
+}
+
+model VolumeTier {
+  id     String  @id @default(cuid())
+  liters Int     @unique
+  active Boolean @default(true)
+  prices Price[]
+}
+
+// Prix TTC payé par le client, livraison comprise, en FCFA.
+model Price {
+  zone      Zone       @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  zoneId    String
+  tier      VolumeTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  tierId    String
+  amountXaf Int
+
+  @@id([zoneId, tierId])
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  ref           String      @unique
+  customerName  String
+  customerPhone String
+  zone          Zone        @relation(fields: [zoneId], references: [id])
+  zoneId        String
+  neighborhood  String
+  landmark      String
+  slot          String
+  liters        Int
+  amountXaf     Int
+  commissionXaf Int
+  status        OrderStatus @default(PENDING_PAYMENT)
+  deliveryCode  String
+  supplier      Supplier?   @relation(fields: [supplierId], references: [id])
+  supplierId    String?
+  payout        Payout?     @relation(fields: [payoutId], references: [id])
+  payoutId      String?
+  rating        Int?
+  ratingComment String?
+  issue         String?
+  payments      Payment[]
+  createdAt     DateTime    @default(now())
+  paidAt        DateTime?
+  acceptedAt    DateTime?
+  enRouteAt     DateTime?
+  deliveredAt   DateTime?
+  cancelledAt   DateTime?
+  refundedAt    DateTime?
+
+  @@index([status])
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  order       Order         @relation(fields: [orderId], references: [id])
+  orderId     String
+  provider    String
+  providerRef String?
+  msisdn      String
+  amountXaf   Int
+  status      PaymentStatus @default(PENDING)
+  raw         Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Payout {
+  id          String       @id @default(cuid())
+  supplier    Supplier     @relation(fields: [supplierId], references: [id])
+  supplierId  String
+  amountXaf   Int
+  msisdn      String
+  provider    String
+  providerRef String?
+  status      PayoutStatus @default(PENDING)
+  orders      Order[]
+  createdAt   DateTime     @default(now())
+  paidAt      DateTime?
+}
+
+// Boîte d'envoi des SMS. En mode test, les messages sont seulement enregistrés ici.
+model Notification {
+  id        String   @id @default(cuid())
+  to        String
+  message   String
+  channel   String   @default("sms")
+  sent      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

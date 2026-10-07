@@ -1,0 +1,11 @@
+{
+  "name": "MaCuve",
+  "short_name": "MaCuve",
+  "description": "Livraison d'eau par citerne dans le Grand Libreville",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f8fb",
+  "theme_color": "#0369a1",
+  "lang": "fr",
+  "icons": [{ "src": "/favicon.ico", "sizes": "48x48", "type": "image/x-icon" }]
+}
