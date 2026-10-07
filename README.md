@@ -41,3 +41,19 @@ Les prix du seed sont **fictifs** : à remplacer dans Admin > Tarifs.
 1. Créer `src/lib/payments/<prestataire>.ts` qui implémente `PaymentProvider` (demande de paiement, statut, webhook, remboursement, reversement).
 2. L'ajouter dans `src/lib/payments/index.ts`.
 3. Mettre `PAYMENT_PROVIDER="<prestataire>"` et ses clés dans `.env`, et déclarer chez le prestataire l'URL de notification `https://<domaine>/api/paiement/webhook/<prestataire>`.
+
+## Mise en ligne de test sur Vercel
+
+1. Sur [vercel.com](https://vercel.com), créer un compte avec « Continue with GitHub », puis importer le dépôt `macuve`.
+2. Dans le projet Vercel, onglet **Storage**, ajouter une base **Neon** (Postgres, offre gratuite). Vercel crée lui-même `DATABASE_URL` et `DATABASE_URL_UNPOOLED`.
+3. Dans **Settings > Environment Variables**, ajouter :
+
+| Variable | Valeur |
+| --- | --- |
+| `SESSION_SECRET` | une longue phrase aléatoire (au moins 32 caractères) |
+| `ADMIN_PASSWORD` | le mot de passe de l'administrateur |
+| `ADMIN_PHONE` | le numéro de connexion de l'administrateur (facultatif, 077000000 par défaut) |
+| `PAYMENT_PROVIDER` | `mock` tant que le contrat de paiement n'est pas signé |
+| `SEED_DEMO` | `1` pour créer le livreur de démonstration (facultatif) |
+
+4. Relancer le déploiement (**Deployments > Redeploy**). Le script `vercel-build` applique les migrations, crée les données de départ, puis compile le site.

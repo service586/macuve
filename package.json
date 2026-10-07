@@ -9,7 +9,9 @@
     "lint": "eslint",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma migrate deploy && prisma db seed && next build"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

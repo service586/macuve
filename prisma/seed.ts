@@ -53,6 +53,9 @@ async function main() {
     update: {},
   });
 
+  // En ligne, le mot de passe administrateur doit venir des réglages, jamais de la valeur par défaut.
+  const online = process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL);
+  if (online && !process.env.ADMIN_PASSWORD) throw new Error("ADMIN_PASSWORD doit être défini pour la mise en ligne");
   const adminPhone = process.env.ADMIN_PHONE ?? "077000000";
   const adminPassword = process.env.ADMIN_PASSWORD ?? "admin1234";
   await db.user.upsert({
@@ -60,9 +63,10 @@ async function main() {
     create: { name: "Administrateur", phone: adminPhone, role: "ADMIN", passwordHash: await bcrypt.hash(adminPassword, 10) },
     update: {},
   });
-  console.log(`Administrateur : ${adminPhone} / ${adminPassword}`);
+  console.log(online ? `Administrateur : ${adminPhone}` : `Administrateur : ${adminPhone} / ${adminPassword}`);
 
-  if (process.env.SEED_DEMO !== "0") {
+  // Le livreur de démonstration n'est créé en ligne que si SEED_DEMO=1.
+  if (online ? process.env.SEED_DEMO === "1" : process.env.SEED_DEMO !== "0") {
     const phone = "074000001";
     const user = await db.user.upsert({
       where: { phone },
