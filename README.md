@@ -68,4 +68,4 @@ Il n'y a pas de tâche planifiée : les délais sont vérifiés à chaque affich
 | `PAYMENT_PROVIDER` | `mock` tant que le contrat de paiement n'est pas signé |
 | `SEED_DEMO` | `1` pour créer le livreur de démonstration (facultatif) |
 
-4. Relancer le déploiement (**Deployments > Redeploy**). Le script `vercel-build` applique les migrations, crée les données de départ, puis compile le site.
+4. Relancer le déploiement (**Deployments > Redeploy**). Le script `vercel-build` applique les migrations, crée les données de départ, puis compile le site. Les aperçus de PR (Preview) sont seulement compilés : ils ne touchent jamais à la base de production.

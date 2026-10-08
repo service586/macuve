@@ -11,7 +11,7 @@
     "db:seed": "prisma db seed",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma migrate deploy && prisma db seed && next build"
+    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then prisma migrate deploy && prisma db seed; fi && next build"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
