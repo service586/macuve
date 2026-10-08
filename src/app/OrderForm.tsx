@@ -5,6 +5,7 @@ import { createOrder } from "./commande/actions";
 import { Alert, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { formatLiters, formatXaf } from "@/lib/format";
+import { LocationPicker } from "./LocationPicker";
 
 type Zone = { id: string; name: string; neighborhoods: string[] };
 type Tier = { id: string; liters: number };
@@ -69,6 +70,8 @@ export function OrderForm({ zones, tiers, prices }: { zones: Zone[]; tiers: Tier
           })}
         </div>
       </fieldset>
+
+      <LocationPicker />
 
       <div>
         <label className={labelClass} htmlFor="neighborhood">

@@ -9,6 +9,7 @@ import { getCommissionPercent } from "@/lib/settings";
 import { isAirtelNumber, normalizeGabonPhone } from "@/lib/phone";
 import { getPaymentProvider } from "@/lib/payments";
 import { applyPaymentResult } from "@/lib/orders";
+import { isInGrandLibreville } from "@/lib/geo";
 
 export type FormState = { error?: string } | undefined;
 
@@ -22,12 +23,16 @@ const orderSchema = z.object({
   landmark: z.string().trim().min(3, "Indiquez un repère pour trouver votre domicile"),
   tierId: z.string().min(1, "Choisissez un volume"),
   slot: z.enum(SLOTS),
+  lat: z.coerce.number({ error: "Placez votre domicile sur la carte" }),
+  lng: z.coerce.number({ error: "Placez votre domicile sur la carte" }),
 });
 
 export async function createOrder(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = orderSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const input = parsed.data;
+
+  if (!isInGrandLibreville(input)) return { error: "Placez votre domicile sur la carte, dans le Grand Libreville" };
 
   const phone = normalizeGabonPhone(input.phone);
   if (!phone) return { error: "Numéro invalide. Exemple : 077 12 34 56" };
@@ -49,6 +54,8 @@ export async function createOrder(_prev: FormState, formData: FormData): Promise
       neighborhood: input.neighborhood,
       landmark: input.landmark,
       slot: input.slot,
+      lat: input.lat,
+      lng: input.lng,
       liters: price.tier.liters,
       amountXaf: price.amountXaf,
       commissionXaf: Math.round((price.amountXaf * commissionPercent) / 100),

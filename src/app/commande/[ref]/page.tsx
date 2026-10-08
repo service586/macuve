@@ -8,6 +8,9 @@ import { Alert, Card, PageTitle, StatusBadge, buttonClass, inputClass, labelClas
 import { SubmitButton } from "@/components/SubmitButton";
 import { rateDelivery, reportIssue } from "../actions";
 import { AutoRefresh } from "./AutoRefresh";
+import { advanceDispatch } from "@/lib/dispatch";
+import { distanceMeters, formatDistance } from "@/lib/geo";
+import { MapView } from "@/components/MapView";
 
 const STEPS: { status: OrderStatus; label: string }[] = [
   { status: "PAID", label: "Payée" },
@@ -19,11 +22,20 @@ const ORDER: OrderStatus[] = ["PENDING_PAYMENT", "PAID", "ACCEPTED", "EN_ROUTE",
 
 export default async function OrderPage({ params }: PageProps<"/commande/[ref]">) {
   const { ref } = await params;
+  await advanceDispatch();
   const order = await db.order.findUnique({
     where: { ref },
-    include: { zone: true, supplier: { include: { user: true } } },
+    include: { zone: true, supplier: { include: { user: true } }, offers: { where: { status: "PENDING" } } },
   });
   if (!order) notFound();
+
+  const home = order.lat !== null && order.lng !== null ? { lat: order.lat, lng: order.lng } : null;
+  const supplier = order.supplier;
+  const driver =
+    supplier && supplier.lat !== null && supplier.lng !== null && (order.status === "ACCEPTED" || order.status === "EN_ROUTE")
+      ? { lat: supplier.lat, lng: supplier.lng }
+      : null;
+  const pendingOffer = order.offers[0];
 
   const reached = ORDER.indexOf(order.status);
   const active = ["PAID", "ACCEPTED", "EN_ROUTE"].includes(order.status);
@@ -69,15 +81,34 @@ export default async function OrderPage({ params }: PageProps<"/commande/[ref]">
         )}
 
         {order.status === "PAID" && (
-          <p className="text-sm text-slate-600">Nous cherchons un livreur disponible dans votre commune. Cette page se met à jour toute seule.</p>
+          <p className="text-sm text-slate-600">
+            {pendingOffer
+              ? `Votre commande est proposée au livreur disponible le plus proche, à ${formatDistance(pendingOffer.distanceM)} de chez vous. `
+              : order.openedToAllAt
+                ? "Aucun livreur n'est disponible tout près : tous les livreurs de votre commune ont été prévenus. "
+                : "Nous cherchons le livreur disponible le plus proche. "}
+            Cette page se met à jour toute seule.
+          </p>
         )}
 
-        {order.supplier && (order.status === "ACCEPTED" || order.status === "EN_ROUTE") && (
+        {home && (order.status === "PAID" || driver) && (
+          <div className="space-y-1">
+            <MapView home={home} driver={driver} className="h-56" />
+            {driver && (
+              <p className="text-sm text-slate-600">
+                🚚 Votre livreur est à {formatDistance(distanceMeters(home, driver))} à vol d&apos;oiseau
+                {supplier?.locatedAt ? `, position du ${formatDate(supplier.locatedAt)}` : ""}.
+              </p>
+            )}
+          </div>
+        )}
+
+        {supplier && (order.status === "ACCEPTED" || order.status === "EN_ROUTE") && (
           <div className="rounded-xl border border-slate-200 p-4">
             <div className="text-sm text-slate-500">Votre livreur</div>
-            <div className="font-semibold">{order.supplier.businessName}</div>
-            <a href={`tel:${order.supplier.user.phone}`} className="text-sky-700 underline">
-              {displayPhone(order.supplier.user.phone)}
+            <div className="font-semibold">{supplier.businessName}</div>
+            <a href={`tel:${supplier.user.phone}`} className="text-sky-700 underline">
+              {displayPhone(supplier.user.phone)}
             </a>
           </div>
         )}

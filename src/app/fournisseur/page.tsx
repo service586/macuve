@@ -6,7 +6,11 @@ import { Alert, Card, PageTitle, StatusBadge, inputClass, secondaryButtonClass, 
 import { SubmitButton } from "@/components/SubmitButton";
 import { AutoRefresh } from "../commande/[ref]/AutoRefresh";
 import { logout } from "../auth/actions";
-import { acceptOrder, confirmDelivery, startDelivery } from "./actions";
+import { acceptOfferAction, acceptOrder, confirmDelivery, declineOfferAction, startDelivery } from "./actions";
+import { advanceDispatch } from "@/lib/dispatch";
+import { directionsUrl, formatDistance } from "@/lib/geo";
+import { DriverPanel } from "./DriverPanel";
+import { Countdown } from "./Countdown";
 
 export default async function SupplierDashboard({ searchParams }: PageProps<"/fournisseur">) {
   const { user, supplier } = await requireSupplier();
@@ -34,9 +38,19 @@ export default async function SupplierDashboard({ searchParams }: PageProps<"/fo
     );
   }
 
-  const [available, mine, delivered] = await Promise.all([
+  await advanceDispatch();
+  const [offer, available, mine, delivered] = await Promise.all([
+    db.orderOffer.findFirst({
+      where: { supplierId: supplier.id, status: "PENDING" },
+      include: { order: { include: { zone: true } } },
+    }),
     db.order.findMany({
-      where: { status: "PAID", supplierId: null, zone: { suppliers: { some: { supplierId: supplier.id } } } },
+      where: {
+        status: "PAID",
+        supplierId: null,
+        openedToAllAt: { not: null },
+        zone: { suppliers: { some: { supplierId: supplier.id } } },
+      },
       include: { zone: true },
       orderBy: { paidAt: "asc" },
     }),
@@ -59,10 +73,44 @@ export default async function SupplierDashboard({ searchParams }: PageProps<"/fo
 
   return (
     <div className="space-y-6">
-      <AutoRefresh seconds={30} />
+      <AutoRefresh seconds={10} />
       {header}
 
+      <DriverPanel available={supplier.available} tracking={supplier.available || mine.length > 0} />
+
       {query.deja_prise && <Alert>Cette commande a déjà été prise par un autre livreur.</Alert>}
+      {query.trop_tard && <Alert>Trop tard : le temps pour accepter était écoulé, la commande est passée à un autre livreur.</Alert>}
+
+      {offer && (
+        <section className="space-y-3 rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-bold">🔔 Nouvelle commande pour vous</h2>
+            <span className="text-sm text-amber-900">
+              Reste <Countdown until={offer.expiresAt.toISOString()} />
+            </span>
+          </div>
+          <div>
+            <div className="text-2xl font-bold">
+              {formatLiters(offer.order.liters)} · {formatXaf(net(offer.order))} pour vous
+            </div>
+            <div className="text-sm text-slate-700">
+              À {formatDistance(offer.distanceM)} de vous · {offer.order.neighborhood}, {offer.order.zone.name} · {offer.order.slot}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <form action={acceptOfferAction} className="flex-1">
+              <input type="hidden" name="offerId" value={offer.id} />
+              <SubmitButton className="w-full rounded-lg bg-emerald-600 px-4 py-3 font-bold text-white hover:bg-emerald-700">
+                Accepter
+              </SubmitButton>
+            </form>
+            <form action={declineOfferAction}>
+              <input type="hidden" name="offerId" value={offer.id} />
+              <SubmitButton className={secondaryButtonClass}>Refuser</SubmitButton>
+            </form>
+          </div>
+        </section>
+      )}
       {query.livree && <Alert kind="success">Livraison confirmée. Le montant sera ajouté à votre prochain reversement.</Alert>}
 
       <div className="grid grid-cols-3 gap-3 text-center">
@@ -95,6 +143,16 @@ export default async function SupplierDashboard({ searchParams }: PageProps<"/fo
                   <strong>{o.neighborhood}</strong>, {o.zone.name} · {o.slot}
                 </div>
                 <div className="text-slate-600">{o.landmark}</div>
+                {o.lat !== null && o.lng !== null && (
+                  <a
+                    className="font-semibold text-sky-700 underline"
+                    href={directionsUrl({ lat: o.lat, lng: o.lng })}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    🧭 Itinéraire vers le client
+                  </a>
+                )}
                 <div>
                   {o.customerName} ·{" "}
                   <a className="text-sky-700 underline" href={`tel:${o.customerPhone}`}>
@@ -131,7 +189,8 @@ export default async function SupplierDashboard({ searchParams }: PageProps<"/fo
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-bold">Commandes disponibles</h2>
+        <h2 className="mb-1 text-lg font-bold">Commandes ouvertes à tous</h2>
+        <p className="mb-3 text-sm text-slate-500">Commandes qu&apos;aucun livreur proche n&apos;a pu prendre : le premier qui accepte les livre.</p>
         {available.length === 0 && <p className="text-slate-500">Aucune commande en attente dans vos communes.</p>}
         <div className="space-y-3">
           {available.map((o) => (

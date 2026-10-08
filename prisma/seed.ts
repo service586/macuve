@@ -10,6 +10,9 @@ const ZONES = [
   { name: "Ntoum", neighborhoods: ["Ntoum centre", "Nkoltang", "Bikélé"] },
 ];
 
+// Communes ouvertes aux commandes pendant le pilote. Les autres s'activent dans « Tarifs ».
+const PILOT_ZONES = ["Libreville", "Akanda"];
+
 const TIERS = [1000, 3000, 5000, 10000];
 
 // PRIX DE TEST, fictifs : à remplacer par l'administrateur dans « Tarifs ».
@@ -26,7 +29,7 @@ async function main() {
     zones.push(
       await db.zone.upsert({
         where: { name: zone.name },
-        create: { ...zone, sortOrder: i },
+        create: { ...zone, sortOrder: i, active: PILOT_ZONES.includes(zone.name) },
         update: {},
       }),
     );

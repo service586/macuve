@@ -3,6 +3,7 @@ import { db } from "./db";
 import { formatLiters, formatXaf } from "./format";
 import { sendSms } from "./notify";
 import { getPaymentProvider } from "./payments";
+import { closeOffers, offerToNearest } from "./dispatch";
 
 // Applique le résultat d'un paiement. Idempotent : un appel de retour reçu
 // deux fois, ou après la consultation du statut, ne change rien.
@@ -26,16 +27,17 @@ export async function applyPaymentResult(paymentId: string, status: Exclude<Paym
       `Commande ${order.ref}. Code de livraison à donner au livreur : ${order.deliveryCode}.`,
   );
 
-  const suppliers = await db.supplier.findMany({
-    where: { status: "APPROVED", zones: { some: { zoneId: order.zoneId } } },
-    include: { user: true },
-  });
-  for (const supplier of suppliers) {
-    await sendSms(
-      supplier.user.phone,
-      `MaCuve : nouvelle commande ${formatLiters(order.liters)} à ${order.neighborhood}. Connectez-vous pour l'accepter.`,
-    );
-  }
+  await offerToNearest(order.id);
+}
+
+export async function notifyCustomerAssigned(orderId: string) {
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { supplier: { include: { user: true } } } });
+  await closeOffers(order.id);
+  await sendSms(
+    order.customerPhone,
+    `MaCuve : ${order.supplier!.businessName} (${order.supplier!.user.phone}) va livrer vos ${formatLiters(order.liters)}. ` +
+      `Suivez-le sur la carte : commande ${order.ref}.`,
+  );
 }
 
 export async function refundOrder(orderId: string): Promise<{ ok: boolean; error?: string }> {
@@ -59,6 +61,7 @@ export async function refundOrder(orderId: string): Promise<{ ok: boolean; error
   if (!result.ok) return { ok: false, error: result.error ?? "Remboursement refusé par le prestataire" };
 
   await db.order.update({ where: { id: order.id }, data: { status: "REFUNDED", refundedAt: new Date() } });
+  await closeOffers(order.id);
   await sendSms(
     payment.msisdn,
     `MaCuve : votre commande ${order.ref} a été remboursée (${formatXaf(order.amountXaf)}).`,

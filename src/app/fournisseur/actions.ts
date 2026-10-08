@@ -9,6 +9,9 @@ import { createSession, requireSupplier } from "@/lib/auth";
 import { isAirtelNumber, normalizeGabonPhone } from "@/lib/phone";
 import { formatLiters } from "@/lib/format";
 import { sendSms } from "@/lib/notify";
+import { notifyCustomerAssigned } from "@/lib/orders";
+import { acceptOffer, advanceDispatch, declineOffer } from "@/lib/dispatch";
+import { isInGrandLibreville } from "@/lib/geo";
 
 export type FormState = { error?: string } | undefined;
 
@@ -61,19 +64,52 @@ export async function acceptOrder(formData: FormData) {
   if (supplier.status !== "APPROVED") redirect("/fournisseur");
   const orderId = String(formData.get("orderId"));
 
-  // Le premier livreur qui accepte prend la commande.
+  // Commande ouverte à tous les livreurs de la commune : le premier qui accepte la prend.
   const updated = await db.order.updateMany({
-    where: { id: orderId, status: "PAID", supplierId: null, zone: { suppliers: { some: { supplierId: supplier.id } } } },
+    where: {
+      id: orderId,
+      status: "PAID",
+      supplierId: null,
+      openedToAllAt: { not: null },
+      zone: { suppliers: { some: { supplierId: supplier.id } } },
+    },
     data: { status: "ACCEPTED", supplierId: supplier.id, acceptedAt: new Date() },
   });
   if (updated.count === 0) redirect("/fournisseur?deja_prise=1");
 
-  const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, include: { supplier: { include: { user: true } } } });
-  await sendSms(
-    order.customerPhone,
-    `MaCuve : ${order.supplier!.businessName} (${order.supplier!.user.phone}) va livrer vos ${formatLiters(order.liters)}. Commande ${order.ref}.`,
-  );
+  await notifyCustomerAssigned(orderId);
   revalidatePath("/fournisseur");
+}
+
+// Commande proposée à ce livreur parce qu'il est le plus proche.
+export async function acceptOfferAction(formData: FormData) {
+  const { supplier } = await requireSupplier();
+  const orderId = await acceptOffer(String(formData.get("offerId")), supplier.id);
+  if (!orderId) redirect("/fournisseur?trop_tard=1");
+  await notifyCustomerAssigned(orderId);
+  revalidatePath("/fournisseur");
+}
+
+export async function declineOfferAction(formData: FormData) {
+  const { supplier } = await requireSupplier();
+  await declineOffer(String(formData.get("offerId")), supplier.id);
+  revalidatePath("/fournisseur");
+}
+
+export async function setAvailability(formData: FormData) {
+  const { supplier } = await requireSupplier();
+  if (supplier.status !== "APPROVED") redirect("/fournisseur");
+  await db.supplier.update({ where: { id: supplier.id }, data: { available: formData.get("available") === "1" } });
+  revalidatePath("/fournisseur");
+}
+
+// Appelée par le téléphone du livreur pendant que sa page est ouverte.
+export async function reportPosition(lat: number, lng: number): Promise<{ ok: boolean }> {
+  const { supplier } = await requireSupplier();
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || !isInGrandLibreville({ lat, lng })) return { ok: false };
+  await db.supplier.update({ where: { id: supplier.id }, data: { lat, lng, locatedAt: new Date() } });
+  if (supplier.available) await advanceDispatch();
+  return { ok: true };
 }
 
 export async function startDelivery(formData: FormData) {
