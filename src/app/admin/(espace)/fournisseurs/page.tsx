@@ -25,6 +25,9 @@ export default async function AdminSuppliersPage() {
           <div className="space-y-1 text-sm">
             <div className="text-base font-bold">
               {s.businessName} <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold">{STATUS[s.status]}</span>
+              {s.status === "APPROVED" && s.available && (
+                <span className="ml-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-900">Disponible</span>
+              )}
             </div>
             <div>
               {s.user.name} · {displayPhone(s.user.phone)} · Airtel Money {displayPhone(s.airtelNumber)}

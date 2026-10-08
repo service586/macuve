@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { applyPaymentResult } from "@/lib/orders";
 import { getPaymentProvider } from "@/lib/payments";
+import { advanceDispatch } from "@/lib/dispatch";
 
 export async function GET(_req: Request, ctx: RouteContext<"/api/commandes/[ref]/statut">) {
   const { ref } = await ctx.params;
@@ -23,6 +24,7 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/commandes/[ref]
     }
   }
 
+  await advanceDispatch();
   const fresh = await db.order.findUniqueOrThrow({ where: { id: order.id }, select: { status: true } });
   return Response.json({ status: fresh.status, paymentStatus: payment?.status });
 }

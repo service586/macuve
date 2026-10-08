@@ -31,10 +31,22 @@ Les prix du seed sont **fictifs** : à remplacer dans Admin > Tarifs.
 | --- | --- |
 | `prisma/schema.prisma` | Modèle de données : livreurs, communes, volumes, prix, commandes, paiements, reversements, SMS |
 | `src/app/` (racine, `commande/`, `suivi/`) | Parcours client : commande, paiement, suivi, note |
-| `src/app/fournisseur/` | Espace livreur : inscription, commandes disponibles, livraison avec code client, gains |
+| `src/app/fournisseur/` | Espace livreur : inscription, disponibilité et position GPS, commandes proposées, livraison avec code client, gains |
+| `src/lib/dispatch.ts` | Envoi de chaque commande payée au livreur disponible le plus proche (voir ci-dessous) |
+| `src/components/MapView.tsx` | Carte OpenStreetMap (Leaflet) : domicile du client et camion du livreur |
 | `src/app/admin/` | Administration : commandes, validation des livreurs, tarifs et commission, reversements, SMS |
 | `src/lib/payments/` | Paiement. Chaque prestataire (PVit, E-Billing, Airtel direct) implémente `PaymentProvider` ; seul `mock` existe pour l'instant |
 | `src/app/api/paiement/webhook/[provider]` | Réception des notifications de paiement des prestataires |
+
+## Comment une commande trouve son livreur
+
+1. Le client place son domicile sur la carte avant de payer.
+2. Le livreur appuie sur « Je suis disponible » ; tant que sa page est ouverte, son téléphone envoie sa position toutes les 20 secondes.
+3. Une fois la commande payée, elle est proposée au livreur disponible le plus proche (position de moins de 15 minutes, citerne assez grande, commune desservie, pas déjà en livraison).
+4. Il a 2 minutes pour accepter (réglable dans « Tarifs »). S'il refuse ou ne répond pas, la commande passe au suivant.
+5. S'il n'y a plus personne, la commande est ouverte à tous les livreurs de la commune, comme avant, et l'administrateur peut l'attribuer.
+
+Il n'y a pas de tâche planifiée : les délais sont vérifiés à chaque affichage des pages de suivi, livreur et administration, qui se rafraîchissent toutes seules.
 
 ## Brancher un vrai prestataire de paiement
 

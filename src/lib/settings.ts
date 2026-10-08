@@ -2,6 +2,8 @@ import { db } from "./db";
 
 const DEFAULTS = {
   commissionPercent: "10",
+  // Temps laissé à un livreur pour accepter une commande avant qu'elle passe au suivant.
+  offerSeconds: "120",
 } as const;
 
 type SettingKey = keyof typeof DEFAULTS;
@@ -17,4 +19,8 @@ export async function getCommissionPercent(): Promise<number> {
 
 export async function setSetting(key: SettingKey, value: string) {
   await db.setting.upsert({ where: { key }, create: { key, value }, update: { value } });
+}
+
+export async function getOfferSeconds(): Promise<number> {
+  return Number(await getSetting("offerSeconds"));
 }

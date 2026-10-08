@@ -42,6 +42,13 @@ enum PaymentStatus {
   FAILED
 }
 
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
 enum PayoutStatus {
   PENDING
   PAID
@@ -72,6 +79,12 @@ model Supplier {
   payouts       Payout[]
   ratingSum     Int            @default(0)
   ratingCount   Int            @default(0)
+  // Disponibilité et dernière position connue du livreur, envoyées par son téléphone.
+  available     Boolean        @default(false)
+  lat           Float?
+  lng           Float?
+  locatedAt     DateTime?
+  offers        OrderOffer[]
   createdAt     DateTime       @default(now())
 }
 
@@ -128,6 +141,9 @@ model Order {
   neighborhood  String
   landmark      String
   slot          String
+  // Position du domicile posée par le client sur la carte.
+  lat           Float?
+  lng           Float?
   liters        Int
   amountXaf     Int
   commissionXaf Int
@@ -141,8 +157,11 @@ model Order {
   ratingComment String?
   issue         String?
   payments      Payment[]
+  offers        OrderOffer[]
   createdAt     DateTime    @default(now())
   paidAt        DateTime?
+  // Plus aucun livreur proche disponible : la commande est ouverte à tous les livreurs de la commune.
+  openedToAllAt DateTime?
   acceptedAt    DateTime?
   enRouteAt     DateTime?
   deliveredAt   DateTime?
@@ -150,6 +169,25 @@ model Order {
   refundedAt    DateTime?
 
   @@index([status])
+}
+
+// Proposition d'une commande à un livreur précis, qui a un temps limité pour l'accepter.
+model OrderOffer {
+  id          String      @id @default(cuid())
+  order       Order       @relation(fields: [orderId], references: [id])
+  orderId     String
+  supplier    Supplier    @relation(fields: [supplierId], references: [id])
+  supplierId  String
+  distanceM   Int
+  status      OfferStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+  expiresAt   DateTime
+  respondedAt DateTime?
+
+  // La migration ajoute aussi deux index uniques partiels (une seule proposition en attente
+  // par commande et par livreur) que Prisma ne sait pas décrire ici.
+  @@index([orderId])
+  @@index([supplierId, status])
 }
 
 model Payment {

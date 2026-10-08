@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { refundOrder } from "@/lib/orders";
+import { notifyCustomerAssigned, refundOrder } from "@/lib/orders";
 import { sendSms } from "@/lib/notify";
 import { getPaymentProvider } from "@/lib/payments";
 import { formatLiters, formatXaf } from "@/lib/format";
@@ -27,6 +27,14 @@ export async function savePricing(formData: FormData) {
   const commission = Number(formData.get("commissionPercent"));
   if (!Number.isFinite(commission) || commission < 0 || commission > 50) redirect("/admin/tarifs?erreur=commission");
   await setSetting("commissionPercent", String(commission));
+  const offerSeconds = Number(formData.get("offerSeconds"));
+  if (!Number.isInteger(offerSeconds) || offerSeconds < 30 || offerSeconds > 900) redirect("/admin/tarifs?erreur=delai");
+  await setSetting("offerSeconds", String(offerSeconds));
+
+  // Une case décochée n'est pas envoyée : on passe donc en revue toutes les communes.
+  for (const zone of await db.zone.findMany({ select: { id: true } })) {
+    await db.zone.update({ where: { id: zone.id }, data: { active: formData.get(`active:${zone.id}`) === "on" } });
+  }
 
   for (const [key, value] of formData.entries()) {
     const priceMatch = /^price:(.+):(.+)$/.exec(key);
@@ -76,10 +84,7 @@ export async function assignSupplier(formData: FormData) {
       order.supplier!.user.phone,
       `MaCuve : la commande ${formatLiters(order.liters)} à ${order.neighborhood} vous a été attribuée. Connectez-vous pour la voir.`,
     );
-    await sendSms(
-      order.customerPhone,
-      `MaCuve : ${order.supplier!.businessName} (${order.supplier!.user.phone}) va livrer vos ${formatLiters(order.liters)}. Commande ${order.ref}.`,
-    );
+    await notifyCustomerAssigned(order.id);
   }
   revalidatePath("/admin");
 }

@@ -15,15 +15,21 @@ export default async function Home() {
     <div className="grid gap-8 md:grid-cols-[1fr_1.2fr]">
       <div className="space-y-5">
         <h1 className="text-3xl font-bold leading-tight text-slate-900 sm:text-4xl">
-          De l&apos;eau livrée chez vous, partout dans le Grand Libreville.
+          De l&apos;eau livrée chez vous, par la citerne la plus proche.
         </h1>
         <p className="text-lg text-slate-600">
-          Choisissez un volume, payez par Airtel Money, et un livreur de citerne vérifié vous apporte l&apos;eau.
+          Placez votre domicile sur la carte, payez par Airtel Money, et le livreur de citerne vérifié le plus proche vous apporte
+          l&apos;eau.
         </p>
+        {zones.length > 0 && (
+          <p className="inline-block rounded-full bg-sky-100 px-3 py-1 text-sm font-semibold text-sky-900">
+            Disponible à {new Intl.ListFormat("fr", { type: "conjunction" }).format(zones.map((z) => z.name))}
+          </p>
+        )}
         <ol className="space-y-3 text-slate-700">
           <li className="flex gap-3">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 font-bold text-sky-800">1</span>
-            Choisissez votre commune et le volume.
+            Placez votre domicile sur la carte et choisissez le volume.
           </li>
           <li className="flex gap-3">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 font-bold text-sky-800">2</span>
@@ -31,7 +37,7 @@ export default async function Home() {
           </li>
           <li className="flex gap-3">
             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-sky-100 font-bold text-sky-800">3</span>
-            Donnez votre code de livraison au livreur à son arrivée.
+            Suivez le camion sur la carte, puis donnez votre code de livraison au livreur.
           </li>
         </ol>
         <p className="text-sm text-slate-500">

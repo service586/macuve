@@ -7,6 +7,8 @@ import { displayPhone } from "@/lib/phone";
 import { Alert, Card, PageTitle, StatusBadge, dangerButtonClass, inputClass, smallButtonClass } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { adminRefund, assignSupplier } from "../actions";
+import { advanceDispatch } from "@/lib/dispatch";
+import { formatDistance } from "@/lib/geo";
 
 const FILTERS: (OrderStatus | "ACTIVE")[] = ["ACTIVE", "PAID", "ACCEPTED", "EN_ROUTE", "DELIVERED", "PENDING_PAYMENT", "REFUNDED", "CANCELLED"];
 
@@ -17,10 +19,11 @@ export default async function AdminOrdersPage({ searchParams }: PageProps<"/admi
   const where =
     filter === "ACTIVE" ? { status: { in: ["PAID", "ACCEPTED", "EN_ROUTE"] as OrderStatus[] } } : { status: filter };
 
+  await advanceDispatch();
   const [orders, counts, suppliers, todayRevenue] = await Promise.all([
     db.order.findMany({
       where,
-      include: { zone: true, supplier: true },
+      include: { zone: true, supplier: true, offers: { where: { status: "PENDING" }, include: { supplier: true } } },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
@@ -92,6 +95,13 @@ export default async function AdminOrdersPage({ searchParams }: PageProps<"/admi
                     · sans livreur depuis {minutesSince(o.paidAt)} min
                   </span>
                 )}
+                {o.status === "PAID" && o.offers[0] && (
+                  <>
+                    {" "}
+                    · proposée à {o.offers[0].supplier.businessName} ({formatDistance(o.offers[0].distanceM)})
+                  </>
+                )}
+                {o.status === "PAID" && o.openedToAllAt && <> · ouverte à tous les livreurs</>}
               </div>
               {o.issue && <Alert>Problème signalé : {o.issue}</Alert>}
               {o.rating !== null && (
