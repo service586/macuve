@@ -10,6 +10,7 @@ import { isAirtelNumber, normalizeGabonPhone } from "@/lib/phone";
 import { getPaymentProvider } from "@/lib/payments";
 import { applyPaymentResult } from "@/lib/orders";
 import { isInGrandLibreville } from "@/lib/geo";
+import { getCurrentCustomer } from "@/lib/auth";
 
 export type FormState = { error?: string } | undefined;
 
@@ -45,9 +46,12 @@ export async function createOrder(_prev: FormState, formData: FormData): Promise
   if (!price || !price.tier.active || !price.zone.active) return { error: "Ce volume n'est pas disponible dans cette commune" };
 
   const commissionPercent = await getCommissionPercent();
+  const customer = await getCurrentCustomer();
+  if (customer && !customer.name) await db.user.update({ where: { id: customer.id }, data: { name: input.customerName } });
   const order = await db.order.create({
     data: {
       ref: newOrderRef(),
+      customerId: customer?.id,
       customerName: input.customerName,
       customerPhone: phone,
       zoneId: input.zoneId,

@@ -31,6 +31,7 @@ Les prix du seed sont **fictifs** : à remplacer dans Admin > Tarifs.
 | --- | --- |
 | `prisma/schema.prisma` | Modèle de données : livreurs, communes, volumes, prix, commandes, paiements, reversements, SMS |
 | `src/app/` (racine, `commande/`, `suivi/`) | Parcours client : commande, paiement, suivi, note |
+| `src/app/compte/` | Compte client : connexion par code SMS, historique des commandes |
 | `src/app/fournisseur/` | Espace livreur : inscription, disponibilité et position GPS, commandes proposées, livraison avec code client, gains |
 | `src/lib/dispatch.ts` | Envoi de chaque commande payée au livreur disponible le plus proche (voir ci-dessous) |
 | `src/components/MapView.tsx` | Carte OpenStreetMap (Leaflet) : domicile du client et camion du livreur |
@@ -47,6 +48,12 @@ Les prix du seed sont **fictifs** : à remplacer dans Admin > Tarifs.
 5. S'il n'y a plus personne, la commande est ouverte à tous les livreurs de la commune, comme avant, et l'administrateur peut l'attribuer.
 
 Il n'y a pas de tâche planifiée : les délais sont vérifiés à chaque affichage des pages de suivi, livreur et administration, qui se rafraîchissent toutes seules.
+
+## Comptes clients
+
+Le client se connecte avec son numéro et un code à 6 chiffres reçu par SMS (valable 10 minutes, 5 essais, 3 codes au plus par quart d'heure). Son historique reprend aussi les commandes passées sans compte avec ce numéro, et le formulaire de commande est prérempli avec sa dernière adresse. Commander sans compte reste possible.
+
+Tant que la variable `SMS_PROVIDER` n'est pas définie, aucun SMS ne part vraiment : le code est affiché à l'écran pour pouvoir tester. Il disparaît de l'écran dès qu'un fournisseur SMS est branché.
 
 ## Brancher un vrai prestataire de paiement
 

@@ -12,6 +12,7 @@ datasource db {
 enum Role {
   ADMIN
   SUPPLIER
+  CUSTOMER
 }
 
 enum SupplierStatus {
@@ -59,10 +60,25 @@ model User {
   id           String    @id @default(cuid())
   name         String
   phone        String    @unique
-  passwordHash String
+  // Vide pour les clients, qui se connectent avec un code reçu par SMS.
+  passwordHash String?
   role         Role
   supplier     Supplier?
+  orders       Order[]
   createdAt    DateTime  @default(now())
+}
+
+// Code de connexion à usage unique envoyé par SMS aux clients.
+model LoginCode {
+  id        String    @id @default(cuid())
+  phone     String
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([phone, createdAt])
 }
 
 model Supplier {
@@ -136,6 +152,9 @@ model Order {
   ref           String      @unique
   customerName  String
   customerPhone String
+  // Compte client, si la commande a été passée en étant connecté.
+  customer      User?       @relation(fields: [customerId], references: [id])
+  customerId    String?
   zone          Zone        @relation(fields: [zoneId], references: [id])
   zoneId        String
   neighborhood  String
@@ -169,6 +188,8 @@ model Order {
   refundedAt    DateTime?
 
   @@index([status])
+  @@index([customerId])
+  @@index([customerPhone])
 }
 
 // Proposition d'une commande à un livreur précis, qui a un temps limité pour l'accepter.

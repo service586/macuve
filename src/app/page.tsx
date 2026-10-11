@@ -2,9 +2,18 @@ import { connection } from "next/server";
 import { db } from "@/lib/db";
 import { Card } from "@/components/ui";
 import { OrderForm } from "./OrderForm";
+import { getCurrentCustomer } from "@/lib/auth";
+import { isAirtelNumber } from "@/lib/phone";
 
 export default async function Home() {
   await connection();
+  const customer = await getCurrentCustomer();
+  const lastOrder = customer
+    ? await db.order.findFirst({
+        where: { OR: [{ customerId: customer.id }, { customerPhone: customer.phone }] },
+        orderBy: { createdAt: "desc" },
+      })
+    : null;
   const [zones, tiers, prices] = await Promise.all([
     db.zone.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
     db.volumeTier.findMany({ where: { active: true }, orderBy: { liters: "asc" } }),
@@ -45,11 +54,22 @@ export default async function Home() {
         </p>
       </div>
       <Card>
-        <h2 className="mb-4 text-xl font-bold">Commander de l&apos;eau</h2>
+        <h2 className="mb-4 text-xl font-bold">
+          {customer?.name ? `Bonjour ${customer.name}, de l'eau ?` : "Commander de l'eau"}
+        </h2>
         <OrderForm
           zones={zones.map((z) => ({ id: z.id, name: z.name, neighborhoods: z.neighborhoods }))}
           tiers={tiers.map((t) => ({ id: t.id, liters: t.liters }))}
           prices={prices.map((p) => ({ zoneId: p.zoneId, tierId: p.tierId, amountXaf: p.amountXaf }))}
+          defaults={{
+            name: customer?.name || lastOrder?.customerName,
+            phone: lastOrder?.customerPhone ?? (customer && isAirtelNumber(customer.phone) ? customer.phone : undefined),
+            zoneId: lastOrder?.zoneId,
+            neighborhood: lastOrder?.neighborhood,
+            landmark: lastOrder?.landmark,
+            lat: lastOrder?.lat,
+            lng: lastOrder?.lng,
+          }}
         />
       </Card>
     </div>
