@@ -5,8 +5,8 @@ import { MapView } from "@/components/MapView";
 import type { LatLng } from "@/lib/geo";
 import { labelClass, secondaryButtonClass } from "@/components/ui";
 
-export function LocationPicker() {
-  const [position, setPosition] = useState<LatLng | null>(null);
+export function LocationPicker({ initial }: { initial?: LatLng | null }) {
+  const [position, setPosition] = useState<LatLng | null>(initial ?? null);
   const [focus, setFocus] = useState(0);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
@@ -46,7 +46,9 @@ export function LocationPicker() {
       <p className={`mt-1 text-sm ${error ? "text-red-700" : position ? "text-emerald-700" : "text-slate-500"}`}>
         {error ||
           (position
-            ? "Position enregistrée. Déplacez le repère 🏠 si besoin."
+            ? initial && position === initial
+              ? "Adresse de votre dernière commande. Déplacez le repère 🏠 si vous êtes ailleurs."
+              : "Position enregistrée. Déplacez le repère 🏠 si besoin."
             : "Touchez « Me localiser » chez vous, ou touchez la carte à l'endroit de votre domicile.")}
       </p>
     </div>

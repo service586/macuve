@@ -41,8 +41,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="text-sm hover:underline">
               Commander
             </Link>
-            <Link href="/suivi" className="text-sm hover:underline">
-              Suivre ma commande
+            <Link href="/compte" className="text-sm hover:underline">
+              Mon compte
             </Link>
             <Link href="/fournisseur" className="text-sm hover:underline">
               Espace livreur

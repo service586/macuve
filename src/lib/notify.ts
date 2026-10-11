@@ -5,3 +5,9 @@ import { db } from "./db";
 export async function sendSms(to: string, message: string) {
   await db.notification.create({ data: { to, message } });
 }
+
+// Tant qu'aucun fournisseur SMS n'est branché, les SMS ne partent pas vraiment :
+// le code de connexion est alors affiché à l'écran pour pouvoir tester.
+export function isSmsTestMode(): boolean {
+  return !process.env.SMS_PROVIDER;
+}

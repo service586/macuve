@@ -13,9 +13,34 @@ type Price = { zoneId: string; tierId: string; amountXaf: number };
 
 const SLOTS = ["Dès que possible", "Aujourd'hui", "Demain matin", "Demain après-midi"];
 
-export function OrderForm({ zones, tiers, prices }: { zones: Zone[]; tiers: Tier[]; prices: Price[] }) {
+export type OrderDefaults = {
+  name?: string;
+  phone?: string;
+  zoneId?: string;
+  neighborhood?: string;
+  landmark?: string;
+  lat?: number | null;
+  lng?: number | null;
+};
+
+export function OrderForm({
+  zones,
+  tiers,
+  prices,
+  defaults = {},
+}: {
+  zones: Zone[];
+  tiers: Tier[];
+  prices: Price[];
+  defaults?: OrderDefaults;
+}) {
   const [state, action] = useActionState(createOrder, undefined);
-  const [zoneId, setZoneId] = useState(zones[0]?.id ?? "");
+  const [zoneId, setZoneId] = useState(
+    defaults.zoneId && zones.some((z) => z.id === defaults.zoneId) ? defaults.zoneId : (zones[0]?.id ?? ""),
+  );
+  const [home] = useState(
+    defaults.lat != null && defaults.lng != null ? { lat: defaults.lat, lng: defaults.lng } : null,
+  );
   const [tierId, setTierId] = useState(tiers[1]?.id ?? tiers[0]?.id ?? "");
   const zone = zones.find((z) => z.id === zoneId);
   const priceFor = useMemo(
@@ -71,13 +96,21 @@ export function OrderForm({ zones, tiers, prices }: { zones: Zone[]; tiers: Tier
         </div>
       </fieldset>
 
-      <LocationPicker />
+      <LocationPicker initial={home} />
 
       <div>
         <label className={labelClass} htmlFor="neighborhood">
           Quartier
         </label>
-        <input id="neighborhood" name="neighborhood" list="neighborhoods" className={inputClass} placeholder="Ex. Nzeng-Ayong" required />
+        <input
+          id="neighborhood"
+          name="neighborhood"
+          list="neighborhoods"
+          className={inputClass}
+          placeholder="Ex. Nzeng-Ayong"
+          defaultValue={defaults.neighborhood}
+          required
+        />
         <datalist id="neighborhoods">
           {zone?.neighborhoods.map((n) => <option key={n} value={n} />)}
         </datalist>
@@ -93,6 +126,7 @@ export function OrderForm({ zones, tiers, prices }: { zones: Zone[]; tiers: Tier
           rows={2}
           className={inputClass}
           placeholder="Ex. Derrière la pharmacie, portail bleu"
+          defaultValue={defaults.landmark}
           required
         />
       </div>
@@ -113,7 +147,14 @@ export function OrderForm({ zones, tiers, prices }: { zones: Zone[]; tiers: Tier
           <label className={labelClass} htmlFor="customerName">
             Votre nom
           </label>
-          <input id="customerName" name="customerName" className={inputClass} autoComplete="name" required />
+          <input
+            id="customerName"
+            name="customerName"
+            className={inputClass}
+            autoComplete="name"
+            defaultValue={defaults.name}
+            required
+          />
         </div>
         <div>
           <label className={labelClass} htmlFor="phone">
@@ -127,6 +168,7 @@ export function OrderForm({ zones, tiers, prices }: { zones: Zone[]; tiers: Tier
             className={inputClass}
             placeholder="077 12 34 56"
             autoComplete="tel"
+            defaultValue={defaults.phone}
             required
           />
         </div>

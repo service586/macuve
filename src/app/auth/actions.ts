@@ -13,7 +13,7 @@ export async function login(_prev: AuthState, formData: FormData): Promise<AuthS
   const phone = normalizeGabonPhone(String(formData.get("phone") ?? ""));
   const password = String(formData.get("password") ?? "");
   const user = phone ? await db.user.findUnique({ where: { phone } }) : null;
-  if (!user || user.role !== role || !(await bcrypt.compare(password, user.passwordHash))) {
+  if (!user || user.role !== role || !user.passwordHash || !(await bcrypt.compare(password, user.passwordHash))) {
     return { error: "Numéro ou mot de passe incorrect" };
   }
   await createSession(user.id);

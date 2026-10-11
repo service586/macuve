@@ -62,7 +62,7 @@ export async function getCurrentUser() {
 export async function requireRole(role: Role) {
   const user = await getCurrentUser();
   if (!user || user.role !== role) {
-    redirect(role === "ADMIN" ? "/admin/connexion" : "/fournisseur/connexion");
+    redirect({ ADMIN: "/admin/connexion", SUPPLIER: "/fournisseur/connexion", CUSTOMER: "/compte/connexion" }[role]);
   }
   return user;
 }
@@ -71,4 +71,10 @@ export async function requireSupplier() {
   const user = await requireRole("SUPPLIER");
   if (!user.supplier) redirect("/fournisseur/connexion");
   return { user, supplier: user.supplier };
+}
+
+// Client connecté, ou null : commander reste possible sans compte.
+export async function getCurrentCustomer() {
+  const user = await getCurrentUser();
+  return user?.role === "CUSTOMER" ? user : null;
 }
