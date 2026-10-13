@@ -1,6 +1,6 @@
 import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { db } from "./db";
-import { sendSms } from "./notify";
+import { isSmsTestMode, sendSms } from "./notify";
 
 const CODE_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
@@ -24,7 +24,8 @@ export async function sendLoginCode(phone: string): Promise<{ ok: true; code: st
   await db.loginCode.create({
     data: { phone, codeHash: hash(phone, code), expiresAt: new Date(Date.now() + CODE_MINUTES * 60 * 1000) },
   });
-  await sendSms(phone, `MaCuve : votre code de connexion est ${code}. Il expire dans ${CODE_MINUTES} minutes. Ne le donnez à personne.`);
+  const sent = await sendSms(phone, `MaCuve : votre code de connexion est ${code}. Il expire dans ${CODE_MINUTES} minutes. Ne le donnez à personne.`);
+  if (!sent && !isSmsTestMode()) return { ok: false, error: "Le SMS n'a pas pu partir. Réessayez dans un instant." };
   return { ok: true, code };
 }
 
