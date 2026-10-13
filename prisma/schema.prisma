@@ -229,5 +229,7 @@ model Notification {
   message   String
   channel   String   @default("sms")
   sent      Boolean  @default(false)
+  // Raison de l'échec renvoyée par le fournisseur SMS, si l'envoi a échoué.
+  error     String?
   createdAt DateTime @default(now())
 }

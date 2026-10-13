@@ -12,6 +12,9 @@ export async function sendSms(to: string, message: string): Promise<boolean> {
   } catch (e) {
     // Un SMS qui ne part pas ne doit pas bloquer la commande : l'échec reste visible dans « SMS ».
     console.error("Échec d'envoi du SMS", row.id, e);
+    const cause = e instanceof Error && e.cause instanceof Error ? ` (${e.cause.message})` : "";
+    const error = `${e instanceof Error ? e.message : String(e)}${cause}`.slice(0, 500);
+    await db.notification.update({ where: { id: row.id }, data: { error } });
     return false;
   }
 }
@@ -39,5 +42,9 @@ async function sendWithTwilio(to: string, message: string) {
     body: new URLSearchParams({ To: toInternational(to), From: from, Body: message }),
     signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new Error(`Twilio ${res.status} : ${await res.text()}`);
+  if (!res.ok) {
+    // Twilio renvoie { code, message } : c'est ce qui aide à comprendre le refus.
+    const body = (await res.json().catch(() => null)) as { code?: number; message?: string } | null;
+    throw new Error(`Twilio ${res.status}${body?.code ? ` (erreur ${body.code})` : ""} : ${body?.message ?? res.statusText}`);
+  }
 }
