@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,8 +36,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         )}
         <header className="bg-sky-800 text-white">
           <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
-            <Link href="/" className="mr-auto text-lg font-bold tracking-tight">
-              💧 MaCuve
+            <Link href="/" className="mr-auto" aria-label="MaCuve, accueil">
+              <Logo />
             </Link>
             <Link href="/" className="text-sm hover:underline">
               Commander
