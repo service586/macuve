@@ -53,7 +53,20 @@ Il n'y a pas de tâche planifiée : les délais sont vérifiés à chaque affich
 
 Le client se connecte avec son numéro et un code à 6 chiffres reçu par SMS (valable 10 minutes, 5 essais, 3 codes au plus par quart d'heure). Son historique reprend aussi les commandes passées sans compte avec ce numéro, et le formulaire de commande est prérempli avec sa dernière adresse. Commander sans compte reste possible.
 
-Tant que la variable `SMS_PROVIDER` n'est pas définie, aucun SMS ne part vraiment : le code est affiché à l'écran pour pouvoir tester. Il disparaît de l'écran dès qu'un fournisseur SMS est branché.
+Tant que la variable `SMS_PROVIDER` ne vaut pas `twilio`, aucun SMS ne part vraiment : le code est affiché à l'écran pour pouvoir tester.
+
+## Envoyer de vrais SMS (Twilio)
+
+Dans Vercel > Settings > Environment Variables, ajoutez :
+
+| Variable | Valeur |
+| :--- | :--- |
+| `SMS_PROVIDER` | `twilio` |
+| `TWILIO_ACCOUNT_SID` | Account SID, sur la page d'accueil de la console Twilio |
+| `TWILIO_AUTH_TOKEN` | Auth Token, au même endroit |
+| `TWILIO_FROM` | le nom d'expéditeur validé (`MaCuve`) ou un numéro Twilio |
+
+Puis redéployez. Chaque SMS apparaît dans Admin > SMS avec « envoyé » ou « non envoyé ».
 
 ## Brancher un vrai prestataire de paiement
 
