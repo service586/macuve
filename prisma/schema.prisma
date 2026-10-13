@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   // Connexion directe (sans pooler) pour les migrations. En local, même valeur que DATABASE_URL.
   directUrl = env("DATABASE_URL_UNPOOLED")
@@ -105,14 +105,15 @@ model Supplier {
 }
 
 model Zone {
-  id            String         @id @default(cuid())
-  name          String         @unique
-  neighborhoods String[]
-  active        Boolean        @default(true)
-  sortOrder     Int            @default(0)
-  prices        Price[]
-  suppliers     SupplierZone[]
-  orders        Order[]
+  id              String         @id @default(cuid())
+  name            String         @unique
+  neighborhoods   String[]
+  active          Boolean        @default(true)
+  sortOrder       Int            @default(0)
+  // Prix TTC payé par le client pour 1000 L, livraison comprise, en FCFA.
+  pricePer1000Xaf Int            @default(5000)
+  suppliers       SupplierZone[]
+  orders          Order[]
 }
 
 model SupplierZone {
@@ -124,38 +125,20 @@ model SupplierZone {
   @@id([supplierId, zoneId])
 }
 
-model VolumeTier {
-  id     String  @id @default(cuid())
-  liters Int     @unique
-  active Boolean @default(true)
-  prices Price[]
-}
-
-// Prix TTC payé par le client, livraison comprise, en FCFA.
-model Price {
-  zone      Zone       @relation(fields: [zoneId], references: [id], onDelete: Cascade)
-  zoneId    String
-  tier      VolumeTier @relation(fields: [tierId], references: [id], onDelete: Cascade)
-  tierId    String
-  amountXaf Int
-
-  @@id([zoneId, tierId])
-}
-
 model Setting {
   key   String @id
   value String
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  ref           String      @unique
+  id            String       @id @default(cuid())
+  ref           String       @unique
   customerName  String
   customerPhone String
   // Compte client, si la commande a été passée en étant connecté.
-  customer      User?       @relation(fields: [customerId], references: [id])
+  customer      User?        @relation(fields: [customerId], references: [id])
   customerId    String?
-  zone          Zone        @relation(fields: [zoneId], references: [id])
+  zone          Zone         @relation(fields: [zoneId], references: [id])
   zoneId        String
   neighborhood  String
   landmark      String
@@ -166,18 +149,18 @@ model Order {
   liters        Int
   amountXaf     Int
   commissionXaf Int
-  status        OrderStatus @default(PENDING_PAYMENT)
+  status        OrderStatus  @default(PENDING_PAYMENT)
   deliveryCode  String
-  supplier      Supplier?   @relation(fields: [supplierId], references: [id])
+  supplier      Supplier?    @relation(fields: [supplierId], references: [id])
   supplierId    String?
-  payout        Payout?     @relation(fields: [payoutId], references: [id])
+  payout        Payout?      @relation(fields: [payoutId], references: [id])
   payoutId      String?
   rating        Int?
   ratingComment String?
   issue         String?
   payments      Payment[]
   offers        OrderOffer[]
-  createdAt     DateTime    @default(now())
+  createdAt     DateTime     @default(now())
   paidAt        DateTime?
   // Plus aucun livreur proche disponible : la commande est ouverte à tous les livreurs de la commune.
   openedToAllAt DateTime?

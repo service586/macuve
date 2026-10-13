@@ -1,15 +1,14 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useState } from "react";
 import { createOrder } from "./commande/actions";
 import { Alert, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
 import { formatLiters, formatXaf } from "@/lib/format";
 import { LocationPicker } from "./LocationPicker";
+import { LITERS_STEP, MAX_LITERS, MIN_LITERS, isValidVolume, priceForVolume } from "@/lib/volumes";
 
-type Zone = { id: string; name: string; neighborhoods: string[] };
-type Tier = { id: string; liters: number };
-type Price = { zoneId: string; tierId: string; amountXaf: number };
+type Zone = { id: string; name: string; neighborhoods: string[]; pricePer1000Xaf: number };
 
 const SLOTS = ["Dès que possible", "Aujourd'hui", "Demain matin", "Demain après-midi"];
 
@@ -17,6 +16,7 @@ export type OrderDefaults = {
   name?: string;
   phone?: string;
   zoneId?: string;
+  liters?: number;
   neighborhood?: string;
   landmark?: string;
   lat?: number | null;
@@ -25,13 +25,9 @@ export type OrderDefaults = {
 
 export function OrderForm({
   zones,
-  tiers,
-  prices,
   defaults = {},
 }: {
   zones: Zone[];
-  tiers: Tier[];
-  prices: Price[];
   defaults?: OrderDefaults;
 }) {
   const [state, action] = useActionState(createOrder, undefined);
@@ -41,13 +37,10 @@ export function OrderForm({
   const [home] = useState(
     defaults.lat != null && defaults.lng != null ? { lat: defaults.lat, lng: defaults.lng } : null,
   );
-  const [tierId, setTierId] = useState(tiers[1]?.id ?? tiers[0]?.id ?? "");
+  const [liters, setLiters] = useState(defaults.liters && isValidVolume(defaults.liters) ? defaults.liters : MIN_LITERS);
   const zone = zones.find((z) => z.id === zoneId);
-  const priceFor = useMemo(
-    () => (tid: string) => prices.find((p) => p.zoneId === zoneId && p.tierId === tid)?.amountXaf,
-    [prices, zoneId],
-  );
-  const total = priceFor(tierId);
+  const total = zone ? priceForVolume(zone.pricePer1000Xaf, liters) : undefined;
+  const tanks = liters / LITERS_STEP;
 
   return (
     <form action={action} className="space-y-5">
@@ -68,32 +61,35 @@ export function OrderForm({
 
       <fieldset>
         <legend className={labelClass}>Volume d&apos;eau</legend>
-        <div className="grid grid-cols-2 gap-3">
-          {tiers.map((t) => {
-            const price = priceFor(t.id);
-            const selected = t.id === tierId;
-            return (
-              <label
-                key={t.id}
-                className={`cursor-pointer rounded-xl border-2 p-3 text-center transition ${
-                  selected ? "border-sky-600 bg-sky-50" : "border-slate-200 bg-white hover:border-slate-300"
-                } ${price === undefined ? "opacity-40" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="tierId"
-                  value={t.id}
-                  checked={selected}
-                  disabled={price === undefined}
-                  onChange={() => setTierId(t.id)}
-                  className="sr-only"
-                />
-                <span className="block text-lg font-bold text-slate-900">{formatLiters(t.liters)}</span>
-                <span className="block text-sm text-slate-600">{price !== undefined ? formatXaf(price) : "Indisponible"}</span>
-              </label>
-            );
-          })}
+        <input type="hidden" name="liters" value={liters} />
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setLiters((l) => Math.max(MIN_LITERS, l - LITERS_STEP))}
+            disabled={liters <= MIN_LITERS}
+            aria-label="Retirer 1000 L"
+            className="h-12 w-12 shrink-0 rounded-xl border-2 border-slate-200 bg-white text-2xl font-bold text-sky-800 hover:border-sky-600 disabled:opacity-30"
+          >
+            −
+          </button>
+          <div className="flex-1 rounded-xl border-2 border-sky-600 bg-sky-50 px-3 py-2 text-center" aria-live="polite">
+            <span className="block text-2xl font-bold text-slate-900">{formatLiters(liters)}</span>
+            <span className="block text-sm text-slate-600">
+              {tanks} {tanks > 1 ? "cuves" : "cuve"}
+              {zone && ` × ${formatXaf(zone.pricePer1000Xaf)}`}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setLiters((l) => Math.min(MAX_LITERS, l + LITERS_STEP))}
+            disabled={liters >= MAX_LITERS}
+            aria-label="Ajouter 1000 L"
+            className="h-12 w-12 shrink-0 rounded-xl border-2 border-slate-200 bg-white text-2xl font-bold text-sky-800 hover:border-sky-600 disabled:opacity-30"
+          >
+            +
+          </button>
         </div>
+        <p className="mt-1 text-xs text-slate-500">De 1000 L à 10 000 L, par tranches de 1000 L.</p>
       </fieldset>
 
       <LocationPicker initial={home} />

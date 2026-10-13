@@ -14,11 +14,7 @@ export default async function Home() {
         orderBy: { createdAt: "desc" },
       })
     : null;
-  const [zones, tiers, prices] = await Promise.all([
-    db.zone.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } }),
-    db.volumeTier.findMany({ where: { active: true }, orderBy: { liters: "asc" } }),
-    db.price.findMany(),
-  ]);
+  const zones = await db.zone.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } });
 
   return (
     <div className="grid gap-8 md:grid-cols-[1fr_1.2fr]">
@@ -58,13 +54,12 @@ export default async function Home() {
           {customer?.name ? `Bonjour ${customer.name}, de l'eau ?` : "Commander de l'eau"}
         </h2>
         <OrderForm
-          zones={zones.map((z) => ({ id: z.id, name: z.name, neighborhoods: z.neighborhoods }))}
-          tiers={tiers.map((t) => ({ id: t.id, liters: t.liters }))}
-          prices={prices.map((p) => ({ zoneId: p.zoneId, tierId: p.tierId, amountXaf: p.amountXaf }))}
+          zones={zones.map((z) => ({ id: z.id, name: z.name, neighborhoods: z.neighborhoods, pricePer1000Xaf: z.pricePer1000Xaf }))}
           defaults={{
             name: customer?.name || lastOrder?.customerName,
             phone: lastOrder?.customerPhone ?? (customer && isAirtelNumber(customer.phone) ? customer.phone : undefined),
             zoneId: lastOrder?.zoneId,
+            liters: lastOrder?.liters,
             neighborhood: lastOrder?.neighborhood,
             landmark: lastOrder?.landmark,
             lat: lastOrder?.lat,

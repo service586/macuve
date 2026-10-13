@@ -12,7 +12,7 @@ Prérequis : Node.js 20 ou plus, PostgreSQL.
 cp .env.example .env        # puis adapter DATABASE_URL et SESSION_SECRET
 npm install
 npx prisma migrate deploy
-npm run db:seed             # communes, volumes, prix de test, comptes de démonstration
+npm run db:seed             # communes, comptes de démonstration
 npm run dev                 # http://localhost:3000
 ```
 
@@ -23,7 +23,7 @@ Comptes créés par le seed (à changer avant toute mise en ligne) :
 | Administrateur | 077000000 | admin1234 | /admin |
 | Livreur de démonstration | 074000001 | fournisseur1 | /fournisseur |
 
-Les prix du seed sont **fictifs** : à remplacer dans Admin > Tarifs.
+Le client commande de 1000 L à 10 000 L, par tranches de 1000 L. Le prix d'une cuve de 1000 L se règle par commune dans Admin > Tarifs (5000 FCFA au départ).
 
 ## Organisation
 

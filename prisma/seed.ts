@@ -13,16 +13,6 @@ const ZONES = [
 // Communes ouvertes aux commandes pendant le pilote. Les autres s'activent dans « Tarifs ».
 const PILOT_ZONES = ["Libreville", "Akanda"];
 
-const TIERS = [1000, 3000, 5000, 10000];
-
-// PRIX DE TEST, fictifs : à remplacer par l'administrateur dans « Tarifs ».
-const TEST_PRICES: Record<string, number[]> = {
-  Libreville: [15000, 35000, 50000, 90000],
-  Akanda: [17000, 38000, 55000, 98000],
-  Owendo: [17000, 38000, 55000, 98000],
-  Ntoum: [20000, 42000, 60000, 105000],
-};
-
 async function main() {
   const zones = [];
   for (const [i, zone] of ZONES.entries()) {
@@ -33,21 +23,6 @@ async function main() {
         update: {},
       }),
     );
-  }
-
-  const tiers = [];
-  for (const liters of TIERS) {
-    tiers.push(await db.volumeTier.upsert({ where: { liters }, create: { liters }, update: {} }));
-  }
-
-  for (const zone of zones) {
-    for (const [i, tier] of tiers.entries()) {
-      await db.price.upsert({
-        where: { zoneId_tierId: { zoneId: zone.id, tierId: tier.id } },
-        create: { zoneId: zone.id, tierId: tier.id, amountXaf: TEST_PRICES[zone.name][i] },
-        update: {},
-      });
-    }
   }
 
   await db.setting.upsert({
