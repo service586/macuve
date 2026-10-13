@@ -1,6 +1,5 @@
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { formatLiters } from "@/lib/format";
 import { getCommissionPercent, getOfferSeconds } from "@/lib/settings";
 import { Alert, Card, PageTitle, inputClass, labelClass } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -9,22 +8,20 @@ import { savePricing } from "../../actions";
 export default async function AdminPricingPage({ searchParams }: PageProps<"/admin/tarifs">) {
   await requireRole("ADMIN");
   const query = await searchParams;
-  const [zones, tiers, prices, commission, offerSeconds] = await Promise.all([
+  const [zones, commission, offerSeconds] = await Promise.all([
     db.zone.findMany({ orderBy: { sortOrder: "asc" } }),
-    db.volumeTier.findMany({ orderBy: { liters: "asc" } }),
-    db.price.findMany(),
     getCommissionPercent(),
     getOfferSeconds(),
   ]);
-  const priceOf = (zoneId: string, tierId: string) => prices.find((p) => p.zoneId === zoneId && p.tierId === tierId)?.amountXaf;
 
   return (
     <form action={savePricing} className="space-y-5">
-      <PageTitle subtitle="Prix payé par le client, livraison comprise, en FCFA. Une case vide rend le volume indisponible dans la commune. Décochez « Ouverte » pour fermer une commune aux commandes.">
+      <PageTitle subtitle="Prix d'une cuve de 1000 L payé par le client, livraison comprise, en FCFA. Le client commande de 1000 L à 10 000 L par tranches de 1000 L : 3000 L coûtent trois fois ce prix. Décochez « Ouverte » pour fermer une commune aux commandes.">
         Tarifs
       </PageTitle>
       {query.enregistre && <Alert kind="success">Tarifs enregistrés.</Alert>}
       {query.erreur === "commission" && <Alert>La commission doit être comprise entre 0 et 50 %.</Alert>}
+      {query.erreur === "prix" && <Alert>Chaque prix doit être un nombre entier de FCFA, supérieur à 0.</Alert>}
       {query.erreur === "delai" && <Alert>Le temps pour accepter doit être compris entre 30 et 900 secondes.</Alert>}
 
       <Card className="!p-0 overflow-x-auto">
@@ -33,11 +30,7 @@ export default async function AdminPricingPage({ searchParams }: PageProps<"/adm
             <tr>
               <th className="px-4 py-2">Commune</th>
               <th className="px-2 py-2">Ouverte</th>
-              {tiers.map((t) => (
-                <th key={t.id} className="px-2 py-2">
-                  {formatLiters(t.liters)}
-                </th>
-              ))}
+              <th className="px-2 py-2">Prix pour 1000 L</th>
             </tr>
           </thead>
           <tbody>
@@ -53,19 +46,18 @@ export default async function AdminPricingPage({ searchParams }: PageProps<"/adm
                     className="h-5 w-5 accent-sky-700"
                   />
                 </td>
-                {tiers.map((t) => (
-                  <td key={t.id} className="px-2 py-2">
-                    <input
-                      name={`price:${z.id}:${t.id}`}
-                      type="number"
-                      min={0}
-                      step={500}
-                      defaultValue={priceOf(z.id, t.id)}
-                      aria-label={`${z.name} ${formatLiters(t.liters)}`}
-                      className={`${inputClass} !py-1.5 min-w-24`}
-                    />
-                  </td>
-                ))}
+                <td className="px-2 py-2">
+                  <input
+                    name={`price:${z.id}`}
+                    type="number"
+                    min={100}
+                    step={100}
+                    required
+                    defaultValue={z.pricePer1000Xaf}
+                    aria-label={`${z.name}, prix pour 1000 L`}
+                    className={`${inputClass} !py-1.5 min-w-28`}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>

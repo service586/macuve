@@ -37,19 +37,11 @@ export async function savePricing(formData: FormData) {
   }
 
   for (const [key, value] of formData.entries()) {
-    const priceMatch = /^price:(.+):(.+)$/.exec(key);
+    const priceMatch = /^price:(.+)$/.exec(key);
     if (priceMatch) {
       const amount = Number(value);
-      const [, zoneId, tierId] = priceMatch;
-      if (String(value).trim() === "") {
-        await db.price.deleteMany({ where: { zoneId, tierId } });
-      } else if (Number.isInteger(amount) && amount > 0) {
-        await db.price.upsert({
-          where: { zoneId_tierId: { zoneId, tierId } },
-          create: { zoneId, tierId, amountXaf: amount },
-          update: { amountXaf: amount },
-        });
-      }
+      if (!Number.isInteger(amount) || amount <= 0) redirect("/admin/tarifs?erreur=prix");
+      await db.zone.update({ where: { id: priceMatch[1] }, data: { pricePer1000Xaf: amount } });
     }
     const zoneMatch = /^neighborhoods:(.+)$/.exec(key);
     if (zoneMatch) {

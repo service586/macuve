@@ -11,6 +11,7 @@ import { getPaymentProvider } from "@/lib/payments";
 import { applyPaymentResult } from "@/lib/orders";
 import { isInGrandLibreville } from "@/lib/geo";
 import { getCurrentCustomer } from "@/lib/auth";
+import { MAX_LITERS, MIN_LITERS, LITERS_STEP, priceForVolume } from "@/lib/volumes";
 
 export type FormState = { error?: string } | undefined;
 
@@ -22,7 +23,12 @@ const orderSchema = z.object({
   zoneId: z.string().min(1, "Choisissez votre commune"),
   neighborhood: z.string().trim().min(2, "Indiquez votre quartier"),
   landmark: z.string().trim().min(3, "Indiquez un repère pour trouver votre domicile"),
-  tierId: z.string().min(1, "Choisissez un volume"),
+  liters: z.coerce
+    .number({ error: "Choisissez un volume" })
+    .int()
+    .min(MIN_LITERS, "Le volume minimum est de 1000 L")
+    .max(MAX_LITERS, "Le volume maximum est de 10 000 L")
+    .multipleOf(LITERS_STEP, "Le volume se commande par tranches de 1000 L"),
   slot: z.enum(SLOTS),
   lat: z.coerce.number({ error: "Placez votre domicile sur la carte" }),
   lng: z.coerce.number({ error: "Placez votre domicile sur la carte" }),
@@ -39,11 +45,9 @@ export async function createOrder(_prev: FormState, formData: FormData): Promise
   if (!phone) return { error: "Numéro invalide. Exemple : 077 12 34 56" };
   if (!isAirtelNumber(phone)) return { error: "Le paiement se fait par Airtel Money : indiquez un numéro Airtel (074, 076 ou 077)" };
 
-  const price = await db.price.findUnique({
-    where: { zoneId_tierId: { zoneId: input.zoneId, tierId: input.tierId } },
-    include: { tier: true, zone: true },
-  });
-  if (!price || !price.tier.active || !price.zone.active) return { error: "Ce volume n'est pas disponible dans cette commune" };
+  const zone = await db.zone.findUnique({ where: { id: input.zoneId } });
+  if (!zone || !zone.active) return { error: "Cette commune n'est pas encore desservie" };
+  const amountXaf = priceForVolume(zone.pricePer1000Xaf, input.liters);
 
   const commissionPercent = await getCommissionPercent();
   const customer = await getCurrentCustomer();
@@ -60,9 +64,9 @@ export async function createOrder(_prev: FormState, formData: FormData): Promise
       slot: input.slot,
       lat: input.lat,
       lng: input.lng,
-      liters: price.tier.liters,
-      amountXaf: price.amountXaf,
-      commissionXaf: Math.round((price.amountXaf * commissionPercent) / 100),
+      liters: input.liters,
+      amountXaf,
+      commissionXaf: Math.round((amountXaf * commissionPercent) / 100),
       deliveryCode: newDeliveryCode(),
     },
   });
