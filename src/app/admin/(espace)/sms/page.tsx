@@ -22,6 +22,7 @@ export default async function AdminSmsPage() {
             {!isSmsTestMode() && (m.sent ? " · envoyé" : <span className="font-semibold text-red-700"> · non envoyé</span>)}
           </div>
           <div>{m.message}</div>
+          {m.error && <div className="mt-1 text-xs text-red-700">Raison : {m.error}</div>}
         </Card>
       ))}
     </div>
