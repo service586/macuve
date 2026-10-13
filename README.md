@@ -57,6 +57,8 @@ Tant que la variable `SMS_PROVIDER` ne vaut pas `twilio`, aucun SMS ne part vrai
 
 ## Envoyer de vrais SMS (Twilio)
 
+Twilio exige un profil d'entreprise validé (KYC, dans Trust Hub) avant tout envoi : sans lui, chaque SMS est refusé avec l'erreur 20003.
+
 Dans Vercel > Settings > Environment Variables, ajoutez :
 
 | Variable | Valeur |
