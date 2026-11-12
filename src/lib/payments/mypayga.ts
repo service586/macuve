@@ -27,7 +27,11 @@ export function isMyPayGaSandbox(): boolean {
 function siteUrl(): string {
   const explicit = process.env.APP_URL;
   if (explicit) return explicit.replace(/\/$/, "");
-  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+  // Sur un aperçu Vercel, l'adresse de production renverrait le client et l'appel de retour au mauvais site.
+  const vercel =
+    process.env.VERCEL_ENV === "production"
+      ? (process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL)
+      : (process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL);
   if (vercel) return `https://${vercel}`;
   throw new Error("APP_URL manquant : adresse publique du site nécessaire pour l'appel de retour MyPayGa");
 }
