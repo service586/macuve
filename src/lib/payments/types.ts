@@ -4,6 +4,7 @@ export interface PaymentRequest {
   orderRef: string;
   msisdn: string;
   amountXaf: number;
+  customerName?: string;
 }
 
 export interface TransferRequest {
@@ -18,7 +19,7 @@ export interface TransferResult {
   error?: string;
 }
 
-// Chaque prestataire (PVit, E-Billing, API Airtel directe…) implémente cette
+// Chaque prestataire (MyPayGa, mock…) implémente cette
 // interface ; le reste du site ne dépend que d'elle.
 export interface PaymentProvider {
   name: string;
@@ -28,7 +29,12 @@ export interface PaymentProvider {
   // Consultation du statut, en secours si l'appel de retour tarde.
   checkStatus(providerRef: string): Promise<ProviderPaymentStatus>;
   // Lit un appel de retour (webhook) du prestataire.
-  parseWebhook(body: unknown, headers: Headers): Promise<{ providerRef: string; status: ProviderPaymentStatus } | null>;
+  // rawBody : texte brut reçu, utile quand la signature porte sur les valeurs telles qu'écrites.
+  parseWebhook(
+    body: unknown,
+    headers: Headers,
+    rawBody?: string,
+  ): Promise<{ providerRef: string; status: ProviderPaymentStatus; amountXaf?: number } | null>;
   // Rembourse un client.
   refund(req: TransferRequest & { paymentRef: string }): Promise<TransferResult>;
   // Reverse de l'argent à un fournisseur.

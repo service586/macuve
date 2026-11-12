@@ -16,10 +16,15 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/commandes/[ref]
   if (payment?.status === "PENDING" && payment.providerRef) {
     const provider = getPaymentProvider(payment.provider);
     if (!provider.isTestMode) {
-      const status = await provider.checkStatus(payment.providerRef);
-      if (status !== "PENDING") {
-        await applyPaymentResult(payment.id, status);
-        payment = { ...payment, status };
+      try {
+        const status = await provider.checkStatus(payment.providerRef);
+        if (status !== "PENDING") {
+          await applyPaymentResult(payment.id, status);
+          payment = { ...payment, status };
+        }
+      } catch (e) {
+        // Prestataire momentanément injoignable : on attend l'appel de retour ou la prochaine consultation.
+        console.error("Consultation du statut de paiement impossible :", e);
       }
     }
   }
