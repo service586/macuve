@@ -78,11 +78,20 @@ export async function createOrder(_prev: FormState, formData: FormData): Promise
 async function startPayment(orderId: string) {
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
   const provider = getPaymentProvider();
-  const { providerRef } = await provider.requestPayment({
-    orderRef: order.ref,
-    msisdn: order.customerPhone,
-    amountXaf: order.amountXaf,
-  });
+  let providerRef: string | null = null;
+  let error: string | null = null;
+  try {
+    ({ providerRef } = await provider.requestPayment({
+      orderRef: order.ref,
+      msisdn: order.customerPhone,
+      amountXaf: order.amountXaf,
+      customerName: order.customerName,
+    }));
+  } catch (e) {
+    // Prestataire injoignable ou demande refusée : le client voit l'échec et peut réessayer.
+    error = e instanceof Error ? e.message : String(e);
+    console.error(`Demande de paiement ${order.ref} échouée :`, error);
+  }
   await db.payment.create({
     data: {
       orderId: order.id,
@@ -90,6 +99,8 @@ async function startPayment(orderId: string) {
       providerRef,
       msisdn: order.customerPhone,
       amountXaf: order.amountXaf,
+      status: error ? "FAILED" : "PENDING",
+      raw: error ? { error } : undefined,
     },
   });
 }

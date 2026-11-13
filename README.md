@@ -2,7 +2,7 @@
 
 Site de commande de livraison d'eau par citerne dans le Grand Libreville. Le client choisit un volume, paie par Airtel Money, et un livreur partenaire livre.
 
-**Mode test** : `PAYMENT_PROVIDER="mock"`. Aucun argent ne circule ; une page de simulation remplace la validation par code PIN, et les SMS sont seulement enregistrés (menu Admin > SMS).
+**Mode test** : `PAYMENT_PROVIDER="mock"` (ou `mypayga` avec une clé `stest_`, voir plus bas). Aucun argent ne circule ; une page de simulation remplace la validation par code PIN, et les SMS sont seulement enregistrés (menu Admin > SMS).
 
 ## Démarrer en local
 
@@ -36,7 +36,7 @@ Le client commande de 1000 L à 10 000 L, par tranches de 1000 L. Le prix d'une 
 | `src/lib/dispatch.ts` | Envoi de chaque commande payée au livreur disponible le plus proche (voir ci-dessous) |
 | `src/components/MapView.tsx` | Carte OpenStreetMap (Leaflet) : domicile du client et camion du livreur |
 | `src/app/admin/` | Administration : commandes, validation des livreurs, tarifs et commission, reversements, SMS |
-| `src/lib/payments/` | Paiement. Chaque prestataire (PVit, E-Billing, Airtel direct) implémente `PaymentProvider` ; seul `mock` existe pour l'instant |
+| `src/lib/payments/` | Paiement. Chaque prestataire implémente `PaymentProvider` : `mock` (simulation) et `mypayga` |
 | `src/app/api/paiement/webhook/[provider]` | Réception des notifications de paiement des prestataires |
 
 ## Comment une commande trouve son livreur
@@ -70,11 +70,20 @@ Dans Vercel > Settings > Environment Variables, ajoutez :
 
 Puis redéployez. Chaque SMS apparaît dans Admin > SMS avec « envoyé » ou « non envoyé ».
 
-## Brancher un vrai prestataire de paiement
+## Paiement mobile money avec MyPayGa
 
-1. Créer `src/lib/payments/<prestataire>.ts` qui implémente `PaymentProvider` (demande de paiement, statut, webhook, remboursement, reversement).
-2. L'ajouter dans `src/lib/payments/index.ts`.
-3. Mettre `PAYMENT_PROVIDER="<prestataire>"` et ses clés dans `.env`, et déclarer chez le prestataire l'URL de notification `https://<domaine>/api/paiement/webhook/<prestataire>`.
+Le site sait encaisser par [MyPayGa](https://mypayga.com/docs) (Airtel Money ; Moov Money est prévu par l'API). Le code est dans `src/lib/payments/mypayga.ts`.
+
+1. Ouvrir un compte marchand MyPayGa (contact@mypayga.com) au nom de Montransfert et récupérer la **clé API** (`stest_…` pour les tests, `sprod_…` pour le réel) et la **clé secrète** qui signe les notifications.
+2. Dans l'espace marchand MyPayGa, déclarer les numéros Airtel de test (avec une clé `stest_`, seuls ces numéros sont débités).
+3. Dans Vercel, ajouter les variables `PAYMENT_PROVIDER=mypayga`, `MYPAYGA_API_KEY`, `MYPAYGA_SECRET_KEY` et `APP_URL` (voir le tableau plus bas), puis redéployer.
+4. Le site donne lui-même à MyPayGa, à chaque paiement, l'adresse de notification `https://<domaine>/api/paiement/webhook/mypayga`. Elle doit être joignable depuis Internet.
+
+Fonctionnement : le client reçoit l'invite de paiement sur son téléphone et la valide avec son code PIN. MyPayGa prévient le site par une notification signée (HMAC-SHA512 avec la clé secrète, vérifiée par le site). En secours, la page de paiement interroge MyPayGa toutes les 4 secondes. Les remboursements et les reversements aux livreurs passent par un transfert MyPayGa (B2C) vers le numéro Airtel concerné.
+
+Pour revenir au mode simulation (aucun appel à MyPayGa), remettre `PAYMENT_PROVIDER=mock`.
+
+Pour brancher un autre prestataire : créer `src/lib/payments/<prestataire>.ts` qui implémente `PaymentProvider`, l'ajouter dans `src/lib/payments/index.ts` et mettre `PAYMENT_PROVIDER="<prestataire>"`.
 
 ## Mise en ligne de test sur Vercel
 
@@ -87,7 +96,11 @@ Puis redéployez. Chaque SMS apparaît dans Admin > SMS avec « envoyé » ou «
 | `SESSION_SECRET` | une longue phrase aléatoire (au moins 32 caractères) |
 | `ADMIN_PASSWORD` | le mot de passe de l'administrateur |
 | `ADMIN_PHONE` | le numéro de connexion de l'administrateur (facultatif, 077000000 par défaut) |
-| `PAYMENT_PROVIDER` | `mock` tant que le contrat de paiement n'est pas signé |
+| `PAYMENT_PROVIDER` | `mock` (simulation sur le site) ou `mypayga` (vrais appels à MyPayGa) |
+| `MYPAYGA_API_KEY` | avec `mypayga` : clé API MyPayGa, `stest_…` (test) ou `sprod_…` (réel) |
+| `MYPAYGA_SECRET_KEY` | avec `mypayga` : clé secrète MyPayGa, qui vérifie les notifications |
+| `APP_URL` | avec `mypayga` : adresse publique du site, ex. `https://macuve.vercel.app` (sans `/` final) |
+| `MYPAYGA_CONTACT_EMAIL` | facultatif : e-mail transmis à MyPayGa avec chaque paiement |
 | `SEED_DEMO` | `1` pour créer le livreur de démonstration (facultatif) |
 
 4. Relancer le déploiement (**Deployments > Redeploy**). Le script `vercel-build` applique les migrations, crée les données de départ, puis compile le site. Les aperçus de PR (Preview) sont seulement compilés : ils ne touchent jamais à la base de production.

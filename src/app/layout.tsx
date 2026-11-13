@@ -1,3 +1,4 @@
+import { paymentModeBanner } from "@/lib/payments";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
@@ -25,14 +26,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  const testMode = (process.env.PAYMENT_PROVIDER ?? "mock") === "mock";
+  const banner = paymentModeBanner();
   return (
     <html lang="fr" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col font-sans">
-        {testMode && (
-          <div className="bg-amber-400 px-4 py-1.5 text-center text-sm font-semibold text-amber-950">
-            Mode test : aucun paiement réel n&apos;est effectué
-          </div>
+        {banner && (
+          <div className="bg-amber-400 px-4 py-1.5 text-center text-sm font-semibold text-amber-950">{banner}</div>
         )}
         <header className="bg-sky-800 text-white">
           <nav className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3">
