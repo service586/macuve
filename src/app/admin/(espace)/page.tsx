@@ -6,7 +6,7 @@ import { STATUS_LABELS, formatDate, formatLiters, formatXaf, hoursAgo, minutesSi
 import { displayPhone } from "@/lib/phone";
 import { Alert, Card, PageTitle, StatusBadge, dangerButtonClass, inputClass, smallButtonClass } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
-import { adminRefund, assignSupplier } from "../actions";
+import { adminCheckPayment, adminMarkPaid, adminRefund, assignSupplier } from "../actions";
 import { advanceDispatch } from "@/lib/dispatch";
 import { formatDistance } from "@/lib/geo";
 
@@ -41,6 +41,11 @@ export default async function AdminOrdersPage({ searchParams }: PageProps<"/admi
       <PageTitle>Commandes</PageTitle>
       {query.rembourse && <Alert kind="success">Commande remboursée.</Alert>}
       {query.erreur && <Alert>{String(query.erreur)}</Alert>}
+      {query.verif && (
+        <Alert kind="info">
+          Réponse de MyPayGa : <code className="break-all">{String(query.verif)}</code>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="!p-3">
@@ -124,6 +129,28 @@ export default async function AdminOrdersPage({ searchParams }: PageProps<"/admi
                       ))}
                     </select>
                     <SubmitButton className={smallButtonClass}>Attribuer</SubmitButton>
+                  </form>
+                )}
+                {o.status === "PENDING_PAYMENT" && (
+                  <form action={adminCheckPayment}>
+                    <input type="hidden" name="orderId" value={o.id} />
+                    <SubmitButton className={smallButtonClass}>Vérifier chez MyPayGa</SubmitButton>
+                  </form>
+                )}
+                {o.status === "PENDING_PAYMENT" && (
+                  <form action={adminMarkPaid} className="flex flex-wrap items-center gap-2">
+                    <input type="hidden" name="orderId" value={o.id} />
+                    <input
+                      name="providerId"
+                      required
+                      placeholder="ID paiement MyPayGa"
+                      aria-label="ID du paiement dans l'espace marchand MyPayGa"
+                      className={`${inputClass} !w-48 !py-1.5 text-sm`}
+                    />
+                    <SubmitButton className={smallButtonClass}>Marquer comme payée</SubmitButton>
+                    <span className="text-xs text-slate-500">
+                      Seulement si MyPayGa affiche « Succès » pour ce montant et ce numéro.
+                    </span>
                   </form>
                 )}
                 {["PAID", "ACCEPTED", "EN_ROUTE"].includes(o.status) && (

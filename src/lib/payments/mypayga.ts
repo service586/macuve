@@ -162,6 +162,20 @@ interface StatusResponse {
   message?: string;
 }
 
+// Réponse brute de MyPayGa pour un paiement, sans la clé, pour le diagnostic dans l'admin.
+export async function myPayGaRawStatus(uniqueId: string): Promise<string> {
+  try {
+    const res = await call<Record<string, unknown>>("GET", "/v1/payment/status", {
+      unique_id: uniqueId,
+      apikey: apiKey(),
+      country_code: COUNTRY,
+    });
+    return JSON.stringify({ ...res, apikey: undefined });
+  } catch (e) {
+    return `Erreur : ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
 // Statut d'un paiement lu directement chez MyPayGa (appel authentifié par notre clé API).
 async function fetchStatus(uniqueId: string): Promise<{ status: ProviderPaymentStatus; amountXaf?: number }> {
   const res = await call<StatusResponse>("GET", "/v1/payment/status", {
