@@ -7,6 +7,7 @@ import { requireRole } from "@/lib/auth";
 import { applyPaymentResult, notifyCustomerAssigned, refundOrder } from "@/lib/orders";
 import { sendSms } from "@/lib/notify";
 import { getPaymentProvider } from "@/lib/payments";
+import { myPayGaRawStatus } from "@/lib/payments/mypayga";
 import { formatLiters, formatXaf } from "@/lib/format";
 import { setSetting } from "@/lib/settings";
 
@@ -59,6 +60,29 @@ export async function adminRefund(formData: FormData) {
   await requireRole("ADMIN");
   const result = await refundOrder(String(formData.get("orderId")));
   redirect(result.ok ? "/admin?rembourse=1" : `/admin?erreur=${encodeURIComponent(result.error ?? "")}`);
+}
+
+// Redemande le statut à MyPayGa et affiche sa réponse brute (diagnostic).
+export async function adminCheckPayment(formData: FormData) {
+  await requireRole("ADMIN");
+  const orderId = String(formData.get("orderId"));
+  const payment = await db.payment.findFirst({ where: { orderId }, orderBy: { createdAt: "desc" } });
+  if (!payment?.providerRef) redirect(`/admin?statut=PENDING_PAYMENT&erreur=${encodeURIComponent("Aucun paiement à vérifier")}`);
+  let answer = `Prestataire ${payment.provider} : vérification non disponible`;
+  if (payment.provider === "mypayga") {
+    answer = await myPayGaRawStatus(payment.providerRef);
+    if (payment.status === "PENDING") {
+      try {
+        const status = await getPaymentProvider("mypayga").checkStatus(payment.providerRef);
+        if (status !== "PENDING") await applyPaymentResult(payment.id, status);
+      } catch {
+        // la réponse brute affichée suffit au diagnostic
+      }
+    }
+  }
+  const order = await db.order.findUniqueOrThrow({ where: { id: orderId }, select: { status: true } });
+  const params = new URLSearchParams({ statut: order.status, verif: `${payment.providerRef} → ${answer}` });
+  redirect(`/admin?${params}`);
 }
 
 // Secours : l'administrateur a vu le paiement « Succès » dans l'espace marchand MyPayGa,

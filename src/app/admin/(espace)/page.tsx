@@ -6,7 +6,7 @@ import { STATUS_LABELS, formatDate, formatLiters, formatXaf, hoursAgo, minutesSi
 import { displayPhone } from "@/lib/phone";
 import { Alert, Card, PageTitle, StatusBadge, dangerButtonClass, inputClass, smallButtonClass } from "@/components/ui";
 import { SubmitButton } from "@/components/SubmitButton";
-import { adminMarkPaid, adminRefund, assignSupplier } from "../actions";
+import { adminCheckPayment, adminMarkPaid, adminRefund, assignSupplier } from "../actions";
 import { advanceDispatch } from "@/lib/dispatch";
 import { formatDistance } from "@/lib/geo";
 
@@ -41,6 +41,11 @@ export default async function AdminOrdersPage({ searchParams }: PageProps<"/admi
       <PageTitle>Commandes</PageTitle>
       {query.rembourse && <Alert kind="success">Commande remboursée.</Alert>}
       {query.erreur && <Alert>{String(query.erreur)}</Alert>}
+      {query.verif && (
+        <Alert kind="info">
+          Réponse de MyPayGa : <code className="break-all">{String(query.verif)}</code>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="!p-3">
@@ -124,6 +129,12 @@ export default async function AdminOrdersPage({ searchParams }: PageProps<"/admi
                       ))}
                     </select>
                     <SubmitButton className={smallButtonClass}>Attribuer</SubmitButton>
+                  </form>
+                )}
+                {o.status === "PENDING_PAYMENT" && (
+                  <form action={adminCheckPayment}>
+                    <input type="hidden" name="orderId" value={o.id} />
+                    <SubmitButton className={smallButtonClass}>Vérifier chez MyPayGa</SubmitButton>
                   </form>
                 )}
                 {o.status === "PENDING_PAYMENT" && (
