@@ -44,7 +44,7 @@ export function networkFor(msisdn: string): "AM" | "MC" {
 // MyPayGa renvoie des codes (200 réussi, 202 en attente, 400 échoué), et parfois des mots.
 export function mapStatus(value: unknown): ProviderPaymentStatus {
   const s = String(value ?? "").trim().toUpperCase();
-  if (s === "200" || s === "SUCCESS" || s === "SUCCESSFUL" || s === "SUCCEEDED") return "SUCCESS";
+  if (["200", "SUCCESS", "SUCCESSFUL", "SUCCESSFULL", "SUCCEEDED", "COMPLETED", "PAID", "APPROVED"].includes(s)) return "SUCCESS";
   if (s === "400" || s === "FAILED" || s === "FAILURE" || s === "FAIL" || s === "CANCELLED" || s === "CANCELED") {
     return "FAILED";
   }
@@ -158,6 +158,23 @@ interface PaymentResponse {
 interface StatusResponse {
   order_status?: string | number;
   request_status?: string | number;
+  amount?: string | number;
+  message?: string;
+}
+
+// Statut d'un paiement lu directement chez MyPayGa (appel authentifié par notre clé API).
+async function fetchStatus(uniqueId: string): Promise<{ status: ProviderPaymentStatus; amountXaf?: number }> {
+  const res = await call<StatusResponse>("GET", "/v1/payment/status", {
+    unique_id: uniqueId,
+    apikey: apiKey(),
+    country_code: COUNTRY,
+  });
+  const status = mapStatus(res.order_status);
+  if (status === "PENDING") {
+    console.log(`MyPayGa : statut de ${uniqueId} =`, JSON.stringify({ ...res, apikey: undefined }));
+  }
+  const amount = Number(res.amount);
+  return { status, amountXaf: Number.isFinite(amount) ? amount : undefined };
 }
 
 export const myPayGaProvider: PaymentProvider = {
@@ -196,34 +213,46 @@ export const myPayGaProvider: PaymentProvider = {
   },
 
   async checkStatus(providerRef) {
-    const res = await call<StatusResponse>("GET", "/v1/payment/status", {
-      unique_id: providerRef,
-      apikey: apiKey(),
-      country_code: COUNTRY,
-    });
-    return mapStatus(res.order_status);
+    return (await fetchStatus(providerRef)).status;
   },
 
   async parseWebhook(body, headers, rawBody) {
     if (!body || typeof body !== "object") return null;
     const data = body as Record<string, unknown>;
-    const secret = process.env.MYPAYGA_SECRET_KEY;
-    if (!secret) {
-      console.error("MyPayGa : MYPAYGA_SECRET_KEY manquant, appel de retour refusé");
-      return null;
-    }
+    const uniqueId = typeof data.unique_id === "string" ? data.unique_id : "";
+    if (!uniqueId) return null;
+
+    const secret = process.env.MYPAYGA_SECRET_KEY?.trim();
     const signature = headers.get("x-callback-signature") ?? String(data.callback_signature ?? "");
-    if (!verifyCallbackSignature(data, signature, secret, rawBody)) {
-      console.error("MyPayGa : signature d'appel de retour invalide");
+    if (secret && verifyCallbackSignature(data, signature, secret, rawBody)) {
+      const amount = Number(data.amount);
+      return {
+        providerRef: uniqueId,
+        status: mapStatus(data.order_status),
+        amountXaf: Number.isFinite(amount) ? amount : undefined,
+      };
+    }
+
+    // Signature absente ou non reconnue : on ne croit pas le contenu de la notification, on
+    // redemande le statut à MyPayGa avec notre clé API, ce qui est tout aussi sûr.
+    console.warn(
+      "MyPayGa : signature d'appel de retour non reconnue, vérification du statut auprès de MyPayGa.",
+      JSON.stringify({
+        secretConfigured: Boolean(secret),
+        headerSignature: headers.has("x-callback-signature"),
+        bodySignature: "callback_signature" in data,
+        signatureLength: signature.length,
+        fields: Object.keys(data),
+        contentType: headers.get("content-type"),
+      }),
+    );
+    try {
+      const checked = await fetchStatus(uniqueId);
+      return { providerRef: uniqueId, ...checked };
+    } catch (e) {
+      console.error("MyPayGa : vérification du statut impossible :", e);
       return null;
     }
-    if (typeof data.unique_id !== "string" || !data.unique_id) return null;
-    const amount = Number(data.amount);
-    return {
-      providerRef: data.unique_id,
-      status: mapStatus(data.order_status),
-      amountXaf: Number.isFinite(amount) ? amount : undefined,
-    };
   },
 
   async refund({ msisdn, amountXaf, reference }) {
