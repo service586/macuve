@@ -233,16 +233,21 @@ async function lookupStatus(
   const tried: string[] = [];
   let last: StatusResponse = {};
   const attempts = statusAttempts(uniqueId, token);
-  for (let i = 0; i < attempts.length; i++) {
-    const params = attempts[i];
+  // La consultation répond « Not found » avec la clé API : on essaie aussi la clé publique (pprod_).
+  const keys: [string, string][] = [["sprod", apiKey()]];
+  const publicKey = process.env.MYPAYGA_PUBLIC_KEY?.trim();
+  if (publicKey) keys.push(["pprod", publicKey]);
+  const combos = keys.flatMap(([keyName, key]) => attempts.map((params) => ({ keyName, key, params })));
+  for (let i = 0; i < combos.length; i++) {
+    const { keyName, key, params } = combos[i];
     try {
-      last = await call<StatusResponse>("GET", "/v1/payment/status", { ...params, apikey: apiKey() });
-      tried.push(`${Object.keys(params).join("+")} → ${JSON.stringify(last)}`);
+      last = await call<StatusResponse>("GET", "/v1/payment/status", { ...params, apikey: key });
+      tried.push(`${keyName}:${Object.keys(params).join("+")} → ${JSON.stringify(last)}`);
       if (last.order_status !== null && last.order_status !== undefined && last.order_status !== "") {
         return { res: last, attempt: i + 1, tried };
       }
     } catch (e) {
-      tried.push(`${Object.keys(params).join("+")} → ${e instanceof Error ? e.message : String(e)}`);
+      tried.push(`${keyName}:${Object.keys(params).join("+")} → ${e instanceof Error ? e.message : String(e)}`);
     }
   }
   return { res: last, attempt: 0, tried };
