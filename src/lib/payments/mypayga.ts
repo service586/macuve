@@ -112,6 +112,57 @@ export function verifyCallbackSignature(
   return false;
 }
 
+// Recherche de la recette réellement utilisée par MyPayGa quand la recette documentée échoue :
+// mêmes champs mais montant formaté autrement, séparateur, devise ajoutée, JSON… Une
+// correspondance reste une preuve d'authenticité (HMAC calculé avec une clé du marchand).
+export function findSignatureVariant(
+  body: Record<string, unknown>,
+  received: string,
+  keys: [string, string | undefined][],
+  rawBody?: string,
+): string | null {
+  const given = received.trim();
+  if (!given) return null;
+  const amounts = new Set(rawAmount(rawBody, body.amount));
+  const n = Number(body.amount);
+  if (Number.isFinite(n)) {
+    for (const a of [String(Math.trunc(n)), n.toFixed(1), n.toFixed(2), n.toFixed(3)]) amounts.add(a);
+  }
+  const fieldSets: [string, string[]][] = [
+    ["doc", SIGNED_FIELDS],
+    ["doc+currency", [...SIGNED_FIELDS, "currency"]],
+    ["body-order", Object.keys(body).filter((k) => k !== "callback_signature")],
+    ["sorted", Object.keys(body).filter((k) => k !== "callback_signature").sort()],
+  ];
+  const payloads: [string, string][] = [];
+  for (const [setName, fields] of fieldSets) {
+    for (const amount of amounts) {
+      for (const sep of ["", "|", ",", ";", ":"]) {
+        const value = fields.map((f) => (f === "amount" ? amount : String(body[f] ?? ""))).join(sep);
+        payloads.push([`${setName} amount=${amount} sep=${JSON.stringify(sep)}`, value]);
+      }
+    }
+  }
+  const { callback_signature: _sig, ...rest } = body;
+  void _sig;
+  payloads.push(["json-sans-signature", JSON.stringify(rest)]);
+  if (rawBody) payloads.push(["corps-brut", rawBody]);
+
+  for (const [keyName, key] of keys) {
+    if (!key) continue;
+    const keyForms: [string, Buffer | string][] = [[keyName, key]];
+    if (/^[A-Za-z0-9+/=]+$/.test(key) && key.length % 4 === 0) keyForms.push([`${keyName}(base64)`, Buffer.from(key, "base64")]);
+    if (/^[0-9a-f]+$/i.test(key) && key.length % 2 === 0) keyForms.push([`${keyName}(hex)`, Buffer.from(key, "hex")]);
+    for (const [formName, k] of keyForms) {
+      for (const [desc, payload] of payloads) {
+        const hex = createHmac("sha512", k).update(payload).digest("hex");
+        if (safeEqual(given.toLowerCase(), hex)) return `${formName} / ${desc}`;
+      }
+    }
+  }
+  return null;
+}
+
 // --- Transferts (reversements aux livreurs et remboursements) -----------------------
 
 interface DisbursementResponse {
@@ -272,7 +323,9 @@ export const myPayGaProvider: PaymentProvider = {
     if (matched && matched[0] !== "MYPAYGA_SECRET_KEY") {
       console.log(`MyPayGa : signature vérifiée avec ${matched[0]}`);
     }
-    if (matched) {
+    const variant = matched ? null : findSignatureVariant(data, signature, candidates, rawBody);
+    if (variant) console.log(`MyPayGa : signature reconnue avec la variante ${variant}`);
+    if (matched || variant) {
       const amount = Number(data.amount);
       return {
         providerRef: uniqueId,
@@ -284,8 +337,10 @@ export const myPayGaProvider: PaymentProvider = {
     // Signature absente ou non reconnue : on ne croit pas le contenu de la notification, on
     // redemande le statut à MyPayGa avec notre clé API, ce qui est tout aussi sûr.
     console.warn(
-      "MyPayGa : signature d'appel de retour non reconnue, vérification du statut auprès de MyPayGa.",
+      "MyPayGa (v3) : signature d'appel de retour non reconnue, vérification du statut auprès de MyPayGa.",
       JSON.stringify({
+        values: Object.fromEntries(Object.entries(data).filter(([k]) => k !== "callback_signature")),
+        rawAmount: rawBody?.match(/"amount"\s*:\s*[^,}]*/)?.[0],
         secretConfigured: Boolean(secret),
         headerSignature: headers.has("x-callback-signature"),
         bodySignature: "callback_signature" in data,
