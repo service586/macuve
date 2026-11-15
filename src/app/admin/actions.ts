@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
-import { notifyCustomerAssigned, refundOrder } from "@/lib/orders";
+import { applyPaymentResult, notifyCustomerAssigned, refundOrder } from "@/lib/orders";
 import { sendSms } from "@/lib/notify";
 import { getPaymentProvider } from "@/lib/payments";
 import { formatLiters, formatXaf } from "@/lib/format";
@@ -59,6 +59,30 @@ export async function adminRefund(formData: FormData) {
   await requireRole("ADMIN");
   const result = await refundOrder(String(formData.get("orderId")));
   redirect(result.ok ? "/admin?rembourse=1" : `/admin?erreur=${encodeURIComponent(result.error ?? "")}`);
+}
+
+// Secours : l'administrateur a vu le paiement « Succès » dans l'espace marchand MyPayGa,
+// mais le site n'a pas reçu ou pas compris la confirmation.
+export async function adminMarkPaid(formData: FormData) {
+  const admin = await requireRole("ADMIN");
+  const orderId = String(formData.get("orderId"));
+  const providerId = String(formData.get("providerId") ?? "").trim();
+  if (!providerId) redirect(`/admin?statut=PENDING_PAYMENT&erreur=${encodeURIComponent("Indiquez l'ID du paiement MyPayGa")}`);
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: { payments: { orderBy: { createdAt: "desc" }, take: 1 } },
+  });
+  const payment = order?.payments[0];
+  if (!order || order.status !== "PENDING_PAYMENT" || !payment) {
+    redirect(`/admin?erreur=${encodeURIComponent("Commande introuvable ou déjà payée")}`);
+  }
+  const note = { manualConfirmation: { providerPaymentId: providerId, by: admin.id, at: new Date().toISOString() } };
+  await db.payment.update({
+    where: { id: payment.id },
+    data: { status: "PENDING", raw: { ...((payment.raw as object | null) ?? {}), ...note } },
+  });
+  await applyPaymentResult(payment.id, "SUCCESS");
+  redirect("/admin?statut=PAID");
 }
 
 export async function assignSupplier(formData: FormData) {
