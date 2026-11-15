@@ -261,7 +261,18 @@ export const myPayGaProvider: PaymentProvider = {
 
     const secret = process.env.MYPAYGA_SECRET_KEY?.trim();
     const signature = headers.get("x-callback-signature") ?? String(data.callback_signature ?? "");
-    if (secret && verifyCallbackSignature(data, signature, secret, rawBody)) {
+    // La doc ne dit pas clairement quelle clé signe : on essaie la clé secrète, puis la clé API
+    // (sprod_) et la clé publique (pprod_) si elle est fournie, et on note celle qui marche.
+    const candidates: [string, string | undefined][] = [
+      ["MYPAYGA_SECRET_KEY", secret],
+      ["MYPAYGA_API_KEY", process.env.MYPAYGA_API_KEY?.trim()],
+      ["MYPAYGA_PUBLIC_KEY", process.env.MYPAYGA_PUBLIC_KEY?.trim()],
+    ];
+    const matched = candidates.find(([, key]) => key && verifyCallbackSignature(data, signature, key, rawBody));
+    if (matched && matched[0] !== "MYPAYGA_SECRET_KEY") {
+      console.log(`MyPayGa : signature vérifiée avec ${matched[0]}`);
+    }
+    if (matched) {
       const amount = Number(data.amount);
       return {
         providerRef: uniqueId,
