@@ -7,7 +7,7 @@ import { requireRole } from "@/lib/auth";
 import { applyPaymentResult, notifyCustomerAssigned, refundOrder } from "@/lib/orders";
 import { sendSms } from "@/lib/notify";
 import { getPaymentProvider } from "@/lib/payments";
-import { myPayGaRawStatus } from "@/lib/payments/mypayga";
+import { fetchStatus, myPayGaRawStatus } from "@/lib/payments/mypayga";
 import { formatLiters, formatXaf } from "@/lib/format";
 import { setSetting } from "@/lib/settings";
 
@@ -70,10 +70,11 @@ export async function adminCheckPayment(formData: FormData) {
   if (!payment?.providerRef) redirect(`/admin?statut=PENDING_PAYMENT&erreur=${encodeURIComponent("Aucun paiement à vérifier")}`);
   let answer = `Prestataire ${payment.provider} : vérification non disponible`;
   if (payment.provider === "mypayga") {
-    answer = await myPayGaRawStatus(payment.providerRef);
+    const token = (payment.raw as { payment_token?: unknown } | null)?.payment_token;
+    answer = await myPayGaRawStatus(payment.providerRef, typeof token === "string" ? token : undefined);
     if (payment.status === "PENDING") {
       try {
-        const status = await getPaymentProvider("mypayga").checkStatus(payment.providerRef);
+        const { status } = await fetchStatus(payment.providerRef, typeof token === "string" ? token : undefined);
         if (status !== "PENDING") await applyPaymentResult(payment.id, status);
       } catch {
         // la réponse brute affichée suffit au diagnostic

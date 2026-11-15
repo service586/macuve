@@ -162,30 +162,53 @@ interface StatusResponse {
   message?: string;
 }
 
-// Réponse brute de MyPayGa pour un paiement, sans la clé, pour le diagnostic dans l'admin.
-export async function myPayGaRawStatus(uniqueId: string): Promise<string> {
-  try {
-    const res = await call<Record<string, unknown>>("GET", "/v1/payment/status", {
-      unique_id: uniqueId,
-      apikey: apiKey(),
-      country_code: COUNTRY,
-    });
-    return JSON.stringify({ ...res, apikey: undefined });
-  } catch (e) {
-    return `Erreur : ${e instanceof Error ? e.message : String(e)}`;
+// La doc indique unique_id + country_code, mais l'API a répondu « Not found » en production :
+// on essaie aussi les variantes plausibles (country, jeton de paiement reçu dans la confirmation).
+function statusAttempts(uniqueId: string, token?: string): Record<string, string>[] {
+  const attempts: Record<string, string>[] = [
+    { unique_id: uniqueId, country_code: COUNTRY },
+    { unique_id: uniqueId, country: COUNTRY },
+  ];
+  if (token) {
+    attempts.push({ payment_token: token, country_code: COUNTRY }, { unique_id: token, country_code: COUNTRY });
   }
+  return attempts;
+}
+
+async function lookupStatus(
+  uniqueId: string,
+  token?: string,
+): Promise<{ res: StatusResponse; attempt: number; tried: string[] }> {
+  const tried: string[] = [];
+  let last: StatusResponse = {};
+  const attempts = statusAttempts(uniqueId, token);
+  for (let i = 0; i < attempts.length; i++) {
+    const params = attempts[i];
+    try {
+      last = await call<StatusResponse>("GET", "/v1/payment/status", { ...params, apikey: apiKey() });
+      tried.push(`${Object.keys(params).join("+")} → ${JSON.stringify(last)}`);
+      if (last.order_status !== null && last.order_status !== undefined && last.order_status !== "") {
+        return { res: last, attempt: i + 1, tried };
+      }
+    } catch (e) {
+      tried.push(`${Object.keys(params).join("+")} → ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { res: last, attempt: 0, tried };
+}
+
+// Réponses brutes de MyPayGa pour un paiement (sans la clé), pour le diagnostic dans l'admin.
+export async function myPayGaRawStatus(uniqueId: string, token?: string): Promise<string> {
+  const { tried } = await lookupStatus(uniqueId, token);
+  return tried.join(" | ");
 }
 
 // Statut d'un paiement lu directement chez MyPayGa (appel authentifié par notre clé API).
-async function fetchStatus(uniqueId: string): Promise<{ status: ProviderPaymentStatus; amountXaf?: number }> {
-  const res = await call<StatusResponse>("GET", "/v1/payment/status", {
-    unique_id: uniqueId,
-    apikey: apiKey(),
-    country_code: COUNTRY,
-  });
+export async function fetchStatus(uniqueId: string, token?: string): Promise<{ status: ProviderPaymentStatus; amountXaf?: number }> {
+  const { res, attempt, tried } = await lookupStatus(uniqueId, token);
   const status = mapStatus(res.order_status);
-  if (status === "PENDING") {
-    console.log(`MyPayGa : statut de ${uniqueId} =`, JSON.stringify({ ...res, apikey: undefined }));
+  if (status === "PENDING" || attempt > 1) {
+    console.log(`MyPayGa : statut de ${uniqueId} (essai ${attempt}) :`, tried.join(" | "));
   }
   const amount = Number(res.amount);
   return { status, amountXaf: Number.isFinite(amount) ? amount : undefined };
@@ -261,7 +284,8 @@ export const myPayGaProvider: PaymentProvider = {
       }),
     );
     try {
-      const checked = await fetchStatus(uniqueId);
+      const token = typeof data.payment_token === "string" ? data.payment_token : undefined;
+      const checked = await fetchStatus(uniqueId, token);
       return { providerRef: uniqueId, ...checked };
     } catch (e) {
       console.error("MyPayGa : vérification du statut impossible :", e);
