@@ -213,17 +213,10 @@ interface StatusResponse {
   message?: string;
 }
 
-// La doc indique unique_id + country_code, mais l'API a répondu « Not found » en production :
-// on essaie aussi les variantes plausibles (country, jeton de paiement reçu dans la confirmation).
-function statusAttempts(uniqueId: string, token?: string): Record<string, string>[] {
-  const attempts: Record<string, string>[] = [
-    { unique_id: uniqueId, country_code: COUNTRY },
-    { unique_id: uniqueId, country: COUNTRY },
-  ];
-  if (token) {
-    attempts.push({ payment_token: token, country_code: COUNTRY }, { unique_id: token, country_code: COUNTRY });
-  }
-  return attempts;
+// Requête documentée : unique_id (celui envoyé à la création) + country_code, clé API.
+// Les variantes d'essai (jeton, clé publique…) ont été retirées : MyPayGa les voyait passer.
+function statusAttempts(uniqueId: string): Record<string, string>[] {
+  return [{ unique_id: uniqueId, country_code: COUNTRY }];
 }
 
 async function lookupStatus(
@@ -232,12 +225,9 @@ async function lookupStatus(
 ): Promise<{ res: StatusResponse; attempt: number; tried: string[] }> {
   const tried: string[] = [];
   let last: StatusResponse = {};
-  const attempts = statusAttempts(uniqueId, token);
-  // La consultation répond « Not found » avec la clé API : on essaie aussi la clé publique (pprod_).
-  const keys: [string, string][] = [["sprod", apiKey()]];
-  const publicKey = process.env.MYPAYGA_PUBLIC_KEY?.trim();
-  if (publicKey) keys.push(["pprod", publicKey]);
-  const combos = keys.flatMap(([keyName, key]) => attempts.map((params) => ({ keyName, key, params })));
+  void token;
+  const attempts = statusAttempts(uniqueId);
+  const combos = attempts.map((params) => ({ keyName: "sprod", key: apiKey(), params }));
   for (let i = 0; i < combos.length; i++) {
     const { keyName, key, params } = combos[i];
     try {
