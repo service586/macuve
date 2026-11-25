@@ -180,7 +180,7 @@ export function findSignatureVariant(
   for (const [keyName, key] of keys) {
     if (!key) continue;
     const keyForms: [string, Buffer | string][] = [[keyName, key]];
-    if (/^[A-Za-z0-9+/=]+$/.test(key) && key.length % 4 === 0) keyForms.push([`${keyName}(base64)`, Buffer.from(key, "base64")]);
+    if (/^[A-Za-z0-9+/=_-]+$/.test(key)) keyForms.push([`${keyName}(base64)`, Buffer.from(key.replace(/-/g, "+").replace(/_/g, "/"), "base64")]);
     if (/^[0-9a-f]+$/i.test(key) && key.length % 2 === 0) keyForms.push([`${keyName}(hex)`, Buffer.from(key, "hex")]);
     for (const [formName, k] of keyForms) {
       for (const [desc, payload] of payloads) {
@@ -366,6 +366,8 @@ export const myPayGaProvider: PaymentProvider = {
       "MyPayGa (v3) : signature d'appel de retour non reconnue, vérification du statut auprès de MyPayGa.",
       JSON.stringify({
         values: Object.fromEntries(Object.entries(data).filter(([k]) => k !== "callback_signature")),
+        // La signature n'est pas secrète : elle permet de rejouer le calcul hors ligne.
+        receivedSignature: signature,
         rawAmount: rawBody?.match(/"amount"\s*:\s*[^,}]*/)?.[0],
         secretConfigured: Boolean(secret),
         headerSignature: headers.has("x-callback-signature"),
