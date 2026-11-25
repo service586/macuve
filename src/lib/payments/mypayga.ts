@@ -143,6 +143,35 @@ export function findSignatureVariant(
       }
     }
   }
+  // Variantes des valeurs elles-mêmes (recette documentée, sans séparateur) : accents encodés
+  // autrement, statut en mot, numéro au format international.
+  const message = String(body.message ?? "");
+  const rawMessage = rawBody?.match(/"message"\s*:\s*"((?:[^"\\]|\\.)*)"/)?.[1];
+  const entities: Record<string, string> = { é: "&eacute;", è: "&egrave;", ê: "&ecirc;", à: "&agrave;", ç: "&ccedil;", ô: "&ocirc;", ù: "&ugrave;", î: "&icirc;" };
+  const messages: [string, string][] = [
+    ["msg", message],
+    ["msg-nfd", message.normalize("NFD")],
+    ["msg-sans-accents", message.normalize("NFD").replace(/[\u0300-\u036f]/g, "")],
+    ["msg-entites", message.replace(/[éèêàçôùî]/g, (c) => entities[c] ?? c)],
+    ["msg-json", JSON.stringify(message).slice(1, -1)],
+    ["msg-json-ascii", JSON.stringify(message).slice(1, -1).replace(/[\u0080-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)],
+    ["msg-vide", ""],
+  ];
+  if (rawMessage !== undefined) messages.push(["msg-brut", rawMessage]);
+  const statuses = [...new Set([String(body.order_status ?? ""), "SUCCESS", "200"])];
+  const phone = String(body.client_phone ?? "");
+  const phones = [...new Set([phone, phone.replace(/^0/, "241"), phone.replace(/^0/, "+241"), phone.replace(/^0/, "")])];
+  for (const [msgName, msg] of messages) {
+    for (const st of statuses) {
+      for (const ph of phones) {
+        for (const amount of amounts) {
+          const value = [st, String(body.unique_id ?? ""), amount, String(body.payment_token ?? ""), String(body.payment_method ?? ""), msg, ph].join("");
+          payloads.push([`doc ${msgName} status=${st} phone=${ph} amount=${amount}`, value]);
+        }
+      }
+    }
+  }
+
   const { callback_signature: _sig, ...rest } = body;
   void _sig;
   payloads.push(["json-sans-signature", JSON.stringify(rest)]);
@@ -155,8 +184,10 @@ export function findSignatureVariant(
     if (/^[0-9a-f]+$/i.test(key) && key.length % 2 === 0) keyForms.push([`${keyName}(hex)`, Buffer.from(key, "hex")]);
     for (const [formName, k] of keyForms) {
       for (const [desc, payload] of payloads) {
-        const hex = createHmac("sha512", k).update(payload).digest("hex");
-        if (safeEqual(given.toLowerCase(), hex)) return `${formName} / ${desc}`;
+        for (const enc of ["utf8", "latin1"] as const) {
+          const hex = createHmac("sha512", k).update(Buffer.from(payload, enc)).digest("hex");
+          if (safeEqual(given.toLowerCase(), hex)) return `${formName} / ${desc} / ${enc}`;
+        }
       }
     }
   }
